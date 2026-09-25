@@ -1,5 +1,4 @@
-from typing import Any
-
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -51,4 +50,22 @@ class PlannerDecision(BaseModel):
         le=1.0
     )
 
+class ExperimentRequest(BaseModel):
+    experiment_id: str = Field(min_length=1)
+    test: str = Field(min_length=1)
 
+
+class SandboxTestRequest(BaseModel):
+    test: Literal[
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test",
+    ]
+
+
+class SandboxTestResponse(BaseModel):
+    status: str
+    test: str
+    finding: str
+    severity: str
+    evidence: str

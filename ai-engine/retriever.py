@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 
@@ -7,6 +8,33 @@ KNOWLEDGE_FILE = (
     / "knowledge"
     / "security_knowledge.json"
 )
+
+
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "should",
+    "that",
+    "the",
+    "their",
+    "this",
+    "to",
+    "with",
+}
 
 
 class KnowledgeRetriever:
@@ -18,56 +46,108 @@ class KnowledgeRetriever:
         ) as file:
             self.documents = json.load(file)
 
+    def tokenize(
+        self,
+        text: str
+    ) -> set[str]:
+        words = re.findall(
+            r"[a-zA-Z0-9_]+",
+            text.lower()
+        )
+
+        return {
+            word
+            for word in words
+            if word not in STOPWORDS
+        }
+
+    def calculate_score(
+        self,
+        query_words: set[str],
+        document: dict
+    ) -> int:
+        topic_words = self.tokenize(
+            document["topic"]
+        )
+
+        title_words = self.tokenize(
+            document["title"]
+        )
+
+        content_words = self.tokenize(
+            document["content"]
+        )
+
+        topic_score = len(
+            query_words.intersection(
+                topic_words
+            )
+        )
+
+        title_score = len(
+            query_words.intersection(
+                title_words
+            )
+        )
+
+        content_score = len(
+            query_words.intersection(
+                content_words
+            )
+        )
+
+        return (
+            topic_score * 3
+            + title_score * 2
+            + content_score
+        )
+
     def retrieve(
         self,
         query: str,
         top_k: int = 3
     ) -> list[str]:
-        query_words = set(
-            query.lower().split()
-        )
+        if top_k <= 0:
+            return []
+
+        query_words = self.tokenize(query)
+
+        if not query_words:
+            return []
 
         scored_documents = []
 
-        for document in self.documents:
-            text = (
-                document["topic"]
-                + " "
-                + document["title"]
-                + " "
-                + document["content"]
-            ).lower()
-
-            document_words = set(
-                text.split()
+        for index, document in enumerate(
+            self.documents
+        ):
+            score = self.calculate_score(
+                query_words,
+                document
             )
 
-            score = len(
-                query_words.intersection(
-                    document_words
+            if score > 0:
+                scored_documents.append(
+                    (
+                        score,
+                        index,
+                        document
+                    )
                 )
-            )
-
-            scored_documents.append(
-                (score, document)
-            )
 
         scored_documents.sort(
-            key=lambda item: item[0],
-            reverse=True
+            key=lambda item: (
+                -item[0],
+                item[1]
+            )
         )
 
         results = []
 
-        for score, document in scored_documents:
-            if score <= 0:
-                continue
-
+        for score, index, document in (
+            scored_documents[:top_k]
+        ):
             results.append(
                 document["content"]
             )
-
-            if len(results) >= top_k:
-                break
 
         return results

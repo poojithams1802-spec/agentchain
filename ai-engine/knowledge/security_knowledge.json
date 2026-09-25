@@ -1,0 +1,50 @@
+[
+  {
+    "id": "KB001",
+    "topic": "tool_security",
+    "title": "Unsafe tool access",
+    "content": "An agent should only invoke tools explicitly permitted by its authorization policy. Tool availability alone must not grant unrestricted access."
+  },
+  {
+    "id": "KB002",
+    "topic": "authorization",
+    "title": "Permission validation",
+    "content": "Every sensitive tool request should be checked against the current user or agent permissions before execution."
+  },
+  {
+    "id": "KB003",
+    "topic": "prompt_injection",
+    "title": "Instruction boundary",
+    "content": "Untrusted content should not override higher-priority system instructions or authorization constraints."
+  },
+  {
+    "id": "KB004",
+    "topic": "memory_security",
+    "title": "Memory validation",
+    "content": "Information written to agent memory should be validated and should not automatically be treated as trusted instructions."
+  },
+  {
+    "id": "KB005",
+    "topic": "agent_security",
+    "title": "Least privilege",
+    "content": "Agent tools should operate with the minimum permissions required for their intended task."
+  },
+  {
+    "id": "KB006",
+    "topic": "testing",
+    "title": "Deterministic testing",
+    "content": "Security tests in a research sandbox should be deterministic and repeatable so findings can be reproduced."
+  },
+  {
+    "id": "KB007",
+    "topic": "chain_reasoning",
+    "title": "Finding dependencies",
+    "content": "A previous finding can be used to prioritize a permitted test that examines a related weakness, but the test must remain within the sandbox allowlist."
+  },
+  {
+    "id": "KB008",
+    "topic": "validation",
+    "title": "Evidence-based findings",
+    "content": "A potential vulnerability should be supported by evidence produced by the controlled sandbox and should not be treated as validated without reproduction."
+  }
+]

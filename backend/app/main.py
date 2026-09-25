@@ -147,8 +147,30 @@ def start_experiment(experiment_id: str):
         {"experiment_id": experiment_id},
         {"$set": {"status": "running"}},
     )
+    add_experiment_log(experiment_id, "Experiment started")
 
-    return {"experiment_id": experiment_id, "status": "running"}
+    mock_test = "tool_access_test"
+    add_experiment_finding(
+        experiment_id=experiment_id,
+        test=mock_test,
+        finding="Mock finding from sandbox",
+        severity="medium",
+        evidence="Mock evidence for orchestration testing",
+    )
+    add_experiment_log(experiment_id, f"Mock test executed: {mock_test}")
+
+    db.experiments.update_one(
+        {"experiment_id": experiment_id},
+        {"$set": {"status": "completed"}},
+    )
+    add_experiment_log(experiment_id, "Experiment completed")
+
+    return {
+        "experiment_id": experiment_id,
+        "status": "completed",
+        "executed_tests": [mock_test],
+        "findings_created": 1,
+    }
 
 
 @app.get("/experiments/{experiment_id}/status")

@@ -1,4 +1,4 @@
-from vulnerabilities import (
+from sandbox.vulnerabilities import (
     run_v1_scenario,
     run_v2_scenario,
     run_v3_scenario,

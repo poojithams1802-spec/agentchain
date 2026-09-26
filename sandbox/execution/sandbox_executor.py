@@ -1,4 +1,4 @@
-from test_runner import run_test
+from ..test_runner import run_test
 
 
 ALLOWED_TESTS = {

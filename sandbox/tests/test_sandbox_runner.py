@@ -1,6 +1,6 @@
 import unittest
 
-from test_runner import run_test
+from sandbox.test_runner import run_test
 
 
 class TestSandboxRunner(unittest.TestCase):

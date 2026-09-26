@@ -1,6 +1,6 @@
 import unittest
 
-from execution.sandbox_executor import execute_sandbox_test
+from sandbox.execution.sandbox_executor import execute_sandbox_test
 
 
 class TestSandboxExecutor(unittest.TestCase):

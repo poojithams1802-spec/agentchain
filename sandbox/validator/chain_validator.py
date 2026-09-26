@@ -1,5 +1,4 @@
-from execution.sandbox_executor import execute_sandbox_test
-
+from ..execution.sandbox_executor import execute_sandbox_test
 
 EXPECTED_FINDINGS = {
     "permission_test": "weak_permission_control",

@@ -1,4 +1,47 @@
-node_modules
-dist
+# Node
+node_modules/
+dist/
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# IDE settings
+.vscode/
+.idea/
+
+# Operating system files
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Python packaging
+*.egg-info/
+build/
+
+# AI / RAG local data
+# Uncomment if you create local vector databases
+# chroma_db/
+# faiss_index/
+
+# Temporary files
+*.tmp
+
+# Local test file
+test_gemini.py
+
+# Local environment files
 *.local

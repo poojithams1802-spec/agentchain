@@ -17,7 +17,6 @@ VALID_STATUSES = {
     "failed",
 }
 
-
 def execute_planned_test(
     decision: PlannerDecision,
     experiment_id: str,
@@ -38,7 +37,7 @@ def execute_planned_test(
 
     # Import only when execution is requested so the AI engine
     # remains independently testable.
-    from execution.sandbox_executor import execute_sandbox_test
+    from sandbox.execution.sandbox_executor import execute_sandbox_test
 
     result = execute_sandbox_test(
         request["experiment_id"],
@@ -46,7 +45,6 @@ def execute_planned_test(
     )
 
     return validate_sandbox_response(result)
-
 
 def validate_sandbox_response(
     response: dict[str, Any],

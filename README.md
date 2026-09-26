@@ -1,20 +1,41 @@
-# AgentChain Security Sandbox
+# AgentChain
 
-This module provides a controlled environment for testing
-security weaknesses in an agentic AI system.
+AgentChain is a security research platform for testing and analyzing vulnerabilities in agentic AI systems.
 
-## Components
+## Project Components
 
-### Agent
+### Frontend & Visualization
+
+The frontend provides the research dashboard and visualization interface.
+
+It includes:
+
+- Dashboard
+- New Experiment
+- Experiment Details
+- Live Logs
+- Findings
+- Attack Chain Explorer
+- Analytics
+- Experiment History
+
+The frontend is built with React and Vite.
+
+### Security Sandbox
+
+The sandbox provides a controlled environment for testing security weaknesses in an agentic AI system.
+
+#### Agent
+
 The toy agent manages tools and permissions.
 
-### Tools
+#### Tools
 
 - Search Tool
 - File Tool
 - Memory Tool
 
-### State
+#### State
 
 The agent maintains:
 
@@ -22,27 +43,14 @@ The agent maintains:
 - Action history
 - Current test user
 
-### Security
+#### Security
 
-The sandbox uses an explicit permission system
-to control tool access.
+The sandbox uses an explicit permission system to control tool access.
 
-## Safety
+The sandbox is intentionally isolated and uses controlled data and deterministic tool behavior. It does not interact with real external systems.
 
-This sandbox is intentionally isolated and uses
-controlled data and deterministic tool behavior.
+## Frontend Setup
 
-It does not interact with real external systems.
-
-## Current Status
-
-Day 1:
-- Sandbox foundation
-- Toy agent
-- Search tool
-- File tool
-- Memory tool
-- Permission system
-
-Day 2:
-- Vulnerability scenarios
+```bash
+npm install
+npm run dev

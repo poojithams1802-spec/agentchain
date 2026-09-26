@@ -1,0 +1,36 @@
+{
+  "summary": {
+    "static": {
+      "total_tests": 10,
+      "total_findings": 4,
+      "valid_findings": 3,
+      "candidate_chains": 1,
+      "validated_chains": 1,
+      "avg_chain_length": 2.0,
+      "validation_rate": 1.0,
+      "llm_calls": 0
+    },
+    "adaptive": {
+      "total_tests": 8.7,
+      "total_findings": 3.7,
+      "valid_findings": 3.0,
+      "candidate_chains": 1.3,
+      "validated_chains": 0.7,
+      "avg_chain_length": 2.7,
+      "validation_rate": 0.62,
+      "llm_calls": 9.3
+    }
+  },
+  "byExperiment": [
+    { "experiment_id": "EXP001", "mode": "adaptive", "tests": 8, "findings": 3, "chain_length": 3 },
+    { "experiment_id": "EXP002", "mode": "adaptive", "tests": 8, "findings": 5, "chain_length": 3 },
+    { "experiment_id": "EXP003", "mode": "static", "tests": 10, "findings": 4, "chain_length": 2 },
+    { "experiment_id": "EXP004", "mode": "adaptive", "tests": 5, "findings": 3, "chain_length": 3 }
+  ],
+  "severityBreakdown": [
+    { "severity": "critical", "count": 1 },
+    { "severity": "high", "count": 2 },
+    { "severity": "medium", "count": 1 },
+    { "severity": "low", "count": 1 }
+  ]
+}

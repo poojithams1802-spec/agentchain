@@ -37,8 +37,8 @@ class AdaptivePlanner:
         """
         Build scoring metadata for every unexecuted sandbox test.
 
-        The values are deterministic heuristics derived from
-        the current planner state.
+        Candidate relevance and expected information gain are
+        adjusted according to the current adaptive chain state.
         """
 
         previous_tests = set(
@@ -83,11 +83,27 @@ class AdaptivePlanner:
             highest_severity = 0.5
             highest_confidence = 0.5
 
+        # -----------------------------------------------------
+        # Adaptive dependency relationships
+        # -----------------------------------------------------
+
+        next_test_after = {
+            "permission_test": "tool_access_test",
+            "tool_access_test": "memory_access_test",
+        }
+
         for test_name in unexecuted_tests:
             test_text = test_name.lower()
 
-            # Relevance
+            # -------------------------------------------------
+            # Base relevance
+            # -------------------------------------------------
+
             relevance = 0.5
+
+            # -------------------------------------------------
+            # Finding-based relevance
+            # -------------------------------------------------
 
             for finding in planner_input.findings:
                 finding_text = (
@@ -100,21 +116,49 @@ class AdaptivePlanner:
                     "permission" in finding_text
                     and "permission" in test_text
                 ):
-                    relevance = 1.0
+                    relevance = max(
+                        relevance,
+                        1.0,
+                    )
 
                 elif (
                     "tool" in finding_text
                     and "tool" in test_text
                 ):
-                    relevance = 1.0
+                    relevance = max(
+                        relevance,
+                        1.0,
+                    )
 
                 elif (
                     "memory" in finding_text
                     and "memory" in test_text
                 ):
-                    relevance = 1.0
+                    relevance = max(
+                        relevance,
+                        1.0,
+                    )
 
+            # -------------------------------------------------
+            # Adaptive dependency relevance
+            # -------------------------------------------------
+
+            for completed_test, next_test in (
+                next_test_after.items()
+            ):
+                if (
+                    completed_test in previous_tests
+                    and test_name == next_test
+                ):
+                    relevance = max(
+                        relevance,
+                        0.95,
+                    )
+
+            # -------------------------------------------------
             # Expected information gain
+            # -------------------------------------------------
+
             information_gain = 0.75
 
             if "permission" in test_text:
@@ -126,7 +170,24 @@ class AdaptivePlanner:
             elif "memory" in test_text:
                 information_gain = 0.8
 
+            # A test that follows an already executed dependency
+            # can provide more useful new information.
+            for completed_test, next_test in (
+                next_test_after.items()
+            ):
+                if (
+                    completed_test in previous_tests
+                    and test_name == next_test
+                ):
+                    information_gain = max(
+                        information_gain,
+                        0.95,
+                    )
+
+            # -------------------------------------------------
             # Testing cost
+            # -------------------------------------------------
+
             testing_cost = 0.2
 
             if "memory" in test_text:
@@ -138,7 +199,9 @@ class AdaptivePlanner:
                     relevance=relevance,
                     severity=highest_severity,
                     confidence=highest_confidence,
-                    expected_information_gain=information_gain,
+                    expected_information_gain=(
+                        information_gain
+                    ),
                     testing_cost=testing_cost,
                 )
             )

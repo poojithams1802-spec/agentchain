@@ -607,3 +607,127 @@ def test_plan_uses_candidate_selection_layer(monkeypatch):
 
     assert called["value"] is True
     assert result.selected_test == "tool_access_test"
+
+def test_permission_test_increases_tool_access_relevance():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[
+            "permission_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    tool_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "tool_access_test"
+    )
+
+    assert tool_candidate.relevance == 0.95
+    assert (
+        tool_candidate.expected_information_gain
+        == 0.95
+    )
+
+def test_permission_test_increases_tool_access_relevance():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[
+            "permission_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    tool_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "tool_access_test"
+    )
+
+    assert tool_candidate.relevance == 0.95
+    assert (
+        tool_candidate.expected_information_gain
+        == 0.95
+    )
+
+def test_adaptive_candidate_builder_excludes_completed_dependencies():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[
+            "permission_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    test_names = [
+        candidate.test_name
+        for candidate in candidates
+    ]
+
+    assert "permission_test" not in test_names
+    assert "tool_access_test" in test_names
+    assert "memory_access_test" in test_names
+
+
+def test_adaptive_ranking_prioritizes_next_dependency():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[
+            "permission_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+    )
+
+    ranked = planner.rank_candidates(
+        planner_input
+    )
+
+    assert ranked[0][0].test_name == "tool_access_test"

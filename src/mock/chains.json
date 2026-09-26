@@ -1,0 +1,28 @@
+[
+  {
+    "chain_id": "CHAIN004",
+    "experiment_id": "EXP004",
+    "status": "candidate",
+    "steps": ["F-2039", "F-2040", "F-2041"],
+    "length": 3,
+    "created_at": "2026-09-25T06:15:00Z"
+  },
+  {
+    "chain_id": "CHAIN003",
+    "experiment_id": "EXP003",
+    "status": "validated",
+    "validated_steps": 2,
+    "steps": ["F-2032", "F-2028"],
+    "length": 2,
+    "created_at": "2026-09-24T14:25:00Z"
+  },
+  {
+    "chain_id": "CHAIN001",
+    "experiment_id": "EXP002",
+    "status": "validated",
+    "validated_steps": 3,
+    "steps": ["F-2028", "F-2032", "F-2039"],
+    "length": 3,
+    "created_at": "2026-09-23T10:02:00Z"
+  }
+]

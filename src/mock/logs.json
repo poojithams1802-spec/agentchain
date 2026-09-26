@@ -1,0 +1,11 @@
+[
+  { "id": 1, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:12:00Z", "event": "experiment_started", "detail": "Adaptive mode, budget 12 tests." },
+  { "id": 2, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:12:04Z", "event": "test_selected", "detail": "Planner selected memory_integrity_test (priority 0.91)." },
+  { "id": 3, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:12:05Z", "event": "finding_recorded", "detail": "F-2039 — memory_validation_weakness (critical)." },
+  { "id": 4, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:12:30Z", "event": "rag_retrieval", "detail": "Retrieved 4 knowledge chunks on memory-related risks." },
+  { "id": 5, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:12:40Z", "event": "test_selected", "detail": "Planner selected permission_boundary_test (priority 0.84)." },
+  { "id": 6, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:12:41Z", "event": "finding_recorded", "detail": "F-2040 — weak_permission_control (medium)." },
+  { "id": 7, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:14:20Z", "event": "test_selected", "detail": "Planner selected tool_access_test (priority 0.84, reason: previous permission weakness suggests testing tool authorization)." },
+  { "id": 8, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:14:22Z", "event": "finding_recorded", "detail": "F-2041 — unsafe_tool_access (high)." },
+  { "id": 9, "experiment_id": "EXP004", "timestamp": "2026-09-25T06:15:00Z", "event": "candidate_chain_formed", "detail": "CHAIN004 — F-2039 → F-2040 → F-2041." }
+]

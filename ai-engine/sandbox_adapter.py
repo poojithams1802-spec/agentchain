@@ -10,12 +10,14 @@ REQUIRED_RESPONSE_FIELDS = {
     "finding",
     "severity",
     "evidence",
+    "confidence",
 }
 
 VALID_STATUSES = {
     "completed",
     "failed",
 }
+
 
 def execute_planned_test(
     decision: PlannerDecision,
@@ -46,6 +48,7 @@ def execute_planned_test(
 
     return validate_sandbox_response(result)
 
+
 def validate_sandbox_response(
     response: dict[str, Any],
 ) -> dict[str, Any]:
@@ -71,6 +74,18 @@ def validate_sandbox_response(
             f"Invalid sandbox status: {response['status']}"
         )
 
+    confidence = response["confidence"]
+
+    if not isinstance(confidence, (int, float)):
+        raise ValueError(
+            "Sandbox confidence must be numeric."
+        )
+
+    if not 0.0 <= confidence <= 1.0:
+        raise ValueError(
+            "Sandbox confidence must be between 0.0 and 1.0."
+        )
+
     if response["status"] == "failed":
         if response["finding"] is not None:
             raise ValueError(
@@ -80,6 +95,11 @@ def validate_sandbox_response(
         if response["severity"] is not None:
             raise ValueError(
                 "Failed sandbox response must have severity=None."
+            )
+
+        if confidence != 0.0:
+            raise ValueError(
+                "Failed sandbox response must have confidence=0.0."
             )
 
     return response

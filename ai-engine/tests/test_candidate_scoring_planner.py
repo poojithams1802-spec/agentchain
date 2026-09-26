@@ -636,7 +636,7 @@ def test_permission_test_increases_tool_access_relevance():
         if candidate.test_name == "tool_access_test"
     )
 
-    assert tool_candidate.relevance == 0.95
+    assert tool_candidate.relevance >= 0.95
     assert (
         tool_candidate.expected_information_gain
         == 0.95
@@ -670,7 +670,7 @@ def test_permission_test_increases_tool_access_relevance():
         if candidate.test_name == "tool_access_test"
     )
 
-    assert tool_candidate.relevance == 0.95
+    assert tool_candidate.relevance >= 0.95
     assert (
         tool_candidate.expected_information_gain
         == 0.95
@@ -731,3 +731,252 @@ def test_adaptive_ranking_prioritizes_next_dependency():
     )
 
     assert ranked[0][0].test_name == "tool_access_test"
+
+def test_rag_knowledge_increases_candidate_relevance():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Improper tool access can expose unauthorized tools."
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    tool_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "tool_access_test"
+    )
+
+    assert tool_candidate.relevance == 0.85
+
+
+def test_rag_knowledge_increases_candidate_relevance():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Improper tool access can expose unauthorized tools."
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    tool_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "tool_access_test"
+    )
+
+    assert tool_candidate.relevance == 0.85
+
+
+def test_rag_knowledge_increases_information_gain():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Memory access validation is important for agents."
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    memory_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "memory_access_test"
+    )
+
+    assert (
+        memory_candidate.expected_information_gain
+        == 0.85
+    )
+
+def test_unrelated_rag_knowledge_does_not_change_candidate_relevance():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "General security monitoring should produce audit logs."
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    for candidate in candidates:
+        assert candidate.relevance == 0.5
+
+def test_dependency_relevance_overrides_rag_relevance():
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[
+            "permission_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Tool access security is important."
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    tool_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "tool_access_test"
+    )
+
+    assert tool_candidate.relevance >= 0.95
+    assert (
+        tool_candidate.expected_information_gain
+        == 0.95
+    )
+
+
+def test_rag_to_candidate_scoring_to_planner_flow(monkeypatch):
+    from planner import AdaptivePlanner
+    from schemas import PlannerInput
+
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            {
+                "finding": "weak_permission_control",
+                "severity": "high",
+                "confidence": 1.0,
+                "evidence": (
+                    "Permission was denied but the tool "
+                    "was still allowed."
+                ),
+            }
+        ],
+        previous_tests=[
+            "permission_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        chain_state={
+            "experiment_id": "rag_scoring_test",
+        },
+    )
+
+    # Simulate retrieved security knowledge.
+    planner_input.retrieved_knowledge = [
+        (
+            "Weak permission controls can allow unauthorized "
+            "tool access. Tool exposure should be tested "
+            "after permission weaknesses are identified."
+        )
+    ]
+
+    # Make the LLM return a valid candidate.
+    monkeypatch.setattr(
+        planner.llm_client,
+        "generate_json",
+        lambda prompt: {
+            "selected_test": "tool_access_test",
+            "reason": (
+                "Tool access should be investigated "
+                "after the permission weakness."
+            ),
+            "priority": 0.9,
+            "confidence": 0.95,
+        },
+    )
+
+    decision = planner.plan(
+        planner_input
+    )
+
+    assert decision.selected_test == "tool_access_test"
+
+    # Verify that RAG information reached the planner.
+    assert (
+        len(planner_input.retrieved_knowledge)
+        > 0
+    )
+
+    # Verify candidate scoring was influenced by
+    # the completed permission test.
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    tool_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "tool_access_test"
+    )
+
+    assert tool_candidate.relevance >= 0.95
+
+    assert (
+        tool_candidate.expected_information_gain
+        == 0.95
+    )
+

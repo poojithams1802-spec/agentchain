@@ -2,9 +2,8 @@ import json
 from typing import Any
 
 from llm_client import GeminiClient
-from retriever import KnowledgeRetriever
+from hybrid_retriever import HybridKnowledgeRetriever
 from scoring import CandidateMetadata, CandidateScorer
-
 
 from schemas import (
     PlannerDecision,
@@ -27,7 +26,7 @@ class AdaptivePlanner:
 
     def __init__(self) -> None:
         self.llm_client = GeminiClient()
-        self.retriever = KnowledgeRetriever()
+        self.retriever = HybridKnowledgeRetriever()
         self.scorer = CandidateScorer()
 
     def build_candidates(
@@ -38,7 +37,10 @@ class AdaptivePlanner:
         Build scoring metadata for every unexecuted sandbox test.
 
         Candidate relevance and expected information gain are
-        adjusted according to the current adaptive chain state.
+        adjusted using:
+        - current findings
+        - retrieved security knowledge
+        - adaptive test dependencies
         """
 
         previous_tests = set(
@@ -82,6 +84,14 @@ class AdaptivePlanner:
         if not planner_input.findings:
             highest_severity = 0.5
             highest_confidence = 0.5
+
+        # -----------------------------------------------------
+        # Prepare retrieved knowledge text
+        # -----------------------------------------------------
+
+        knowledge_text = " ".join(
+            planner_input.retrieved_knowledge
+        ).lower()
 
         # -----------------------------------------------------
         # Adaptive dependency relationships
@@ -140,6 +150,28 @@ class AdaptivePlanner:
                     )
 
             # -------------------------------------------------
+            # RAG-based relevance
+            # -------------------------------------------------
+
+            knowledge_keywords = {
+                "permission": "permission",
+                "tool": "tool",
+                "memory": "memory",
+            }
+
+            for keyword, candidate_keyword in (
+                knowledge_keywords.items()
+            ):
+                if (
+                    keyword in knowledge_text
+                    and candidate_keyword in test_text
+                ):
+                    relevance = max(
+                        relevance,
+                        0.85,
+                    )
+
+            # -------------------------------------------------
             # Adaptive dependency relevance
             # -------------------------------------------------
 
@@ -170,8 +202,21 @@ class AdaptivePlanner:
             elif "memory" in test_text:
                 information_gain = 0.8
 
-            # A test that follows an already executed dependency
-            # can provide more useful new information.
+            # RAG-supported candidates can provide more
+            # context-specific information.
+            for keyword, candidate_keyword in (
+                knowledge_keywords.items()
+            ):
+                if (
+                    keyword in knowledge_text
+                    and candidate_keyword in test_text
+                ):
+                    information_gain = max(
+                        information_gain,
+                        0.85,
+                    )
+
+            # Dependency-aware information gain
             for completed_test, next_test in (
                 next_test_after.items()
             ):

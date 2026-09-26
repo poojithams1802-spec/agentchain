@@ -25,10 +25,10 @@ def run_test(test_name):
 
     finding = result["name"]
 
-    # Current sandbox scenarios are deterministic.
-    # If the expected vulnerable behavior is reproduced,
-    # the finding confidence is 1.0.
-    # Otherwise, confidence is 0.0.
+    # The current P4 scenarios are deterministic.
+    # If the intentionally vulnerable behavior is reproduced,
+    # confidence is 1.0.
+    # Otherwise confidence is 0.0.
     confidence = 1.0 if result["vulnerable"] else 0.0
 
     return {

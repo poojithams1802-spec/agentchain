@@ -1,3 +1,7 @@
+# Node
+node_modules/
+dist/
+
 # Python virtual environment
 .venv/
 venv/
@@ -26,7 +30,6 @@ Thumbs.db
 
 # Python packaging
 *.egg-info/
-dist/
 build/
 
 # AI / RAG local data
@@ -37,4 +40,8 @@ build/
 # Temporary files
 *.tmp
 
+# Local test file
 test_gemini.py
+
+# Local environment files
+*.local

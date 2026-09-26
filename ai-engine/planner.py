@@ -3,6 +3,9 @@ from typing import Any
 
 from llm_client import GeminiClient
 from retriever import KnowledgeRetriever
+from scoring import CandidateMetadata, CandidateScorer
+
+
 from schemas import (
     PlannerDecision,
     PlannerInput
@@ -25,6 +28,122 @@ class AdaptivePlanner:
     def __init__(self) -> None:
         self.llm_client = GeminiClient()
         self.retriever = KnowledgeRetriever()
+        self.scorer = CandidateScorer()
+
+    def build_candidates(
+        self,
+        planner_input: PlannerInput,
+    ) -> list[CandidateMetadata]:
+        """
+        Build scoring metadata for every unexecuted sandbox test.
+
+        The values are deterministic heuristics derived from
+        the current planner state.
+        """
+
+        previous_tests = set(
+            planner_input.previous_tests
+        )
+
+        unexecuted_tests = [
+            test
+            for test in planner_input.available_tests
+            if test not in previous_tests
+        ]
+
+        candidates = []
+
+        severity_weights = {
+            "low": 0.25,
+            "medium": 0.5,
+            "high": 0.75,
+            "critical": 1.0,
+        }
+
+        highest_severity = 0.0
+        highest_confidence = 0.0
+
+        for finding in planner_input.findings:
+            severity_score = severity_weights.get(
+                finding.severity.lower(),
+                0.5,
+            )
+
+            highest_severity = max(
+                highest_severity,
+                severity_score,
+            )
+
+            highest_confidence = max(
+                highest_confidence,
+                finding.confidence,
+            )
+
+        if not planner_input.findings:
+            highest_severity = 0.5
+            highest_confidence = 0.5
+
+        for test_name in unexecuted_tests:
+            test_text = test_name.lower()
+
+            # Relevance
+            relevance = 0.5
+
+            for finding in planner_input.findings:
+                finding_text = (
+                    finding.finding
+                    + " "
+                    + finding.evidence
+                ).lower()
+
+                if (
+                    "permission" in finding_text
+                    and "permission" in test_text
+                ):
+                    relevance = 1.0
+
+                elif (
+                    "tool" in finding_text
+                    and "tool" in test_text
+                ):
+                    relevance = 1.0
+
+                elif (
+                    "memory" in finding_text
+                    and "memory" in test_text
+                ):
+                    relevance = 1.0
+
+            # Expected information gain
+            information_gain = 0.75
+
+            if "permission" in test_text:
+                information_gain = 0.9
+
+            elif "tool" in test_text:
+                information_gain = 0.9
+
+            elif "memory" in test_text:
+                information_gain = 0.8
+
+            # Testing cost
+            testing_cost = 0.2
+
+            if "memory" in test_text:
+                testing_cost = 0.3
+
+            candidates.append(
+                CandidateMetadata(
+                    test_name=test_name,
+                    relevance=relevance,
+                    severity=highest_severity,
+                    confidence=highest_confidence,
+                    expected_information_gain=information_gain,
+                    testing_cost=testing_cost,
+                )
+            )
+
+        return candidates
 
     # ---------------------------------------------------------
     # Query construction

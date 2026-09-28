@@ -584,7 +584,7 @@ Do not include additional explanation.
         reason: str
     ) -> PlannerDecision:
         """
-        Select the first unexecuted available test.
+        Select the highest-ranked unexecuted candidate.
 
         This method is deterministic and does not use
         the LLM or external services.
@@ -605,6 +605,30 @@ Do not include additional explanation.
                 "No unexecuted sandbox tests are available."
             )
 
+        ranked_candidates = self.rank_candidates(
+            planner_input
+        )
+
+        if ranked_candidates:
+            best_candidate, best_score = ranked_candidates[0]
+
+            selected_test = best_candidate.test_name
+
+            print(
+                "[Planner] Using scored fallback decision"
+            )
+
+            return PlannerDecision(
+                selected_test=selected_test,
+                reason=(
+                    "Fallback selected the highest-ranked "
+                    "unexecuted candidate based on candidate "
+                    "scoring."
+                ),
+                priority=best_score,
+                confidence=0.1,
+            )
+
         selected_test = unexecuted_tests[0]
 
         print(
@@ -618,7 +642,7 @@ Do not include additional explanation.
                 + reason
             ),
             priority=0.1,
-            confidence=0.1
+            confidence=0.1,
         )
 
     # ---------------------------------------------------------

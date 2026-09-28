@@ -26,3 +26,22 @@ def test_p3_candidate_chain_validates_with_p4():
 
     assert result["steps"][1]["test"] == "tool_access_test"
     assert result["steps"][1]["valid"] is True
+
+
+def test_p3_invalid_candidate_chain_is_rejected_by_p4():
+    experiment_id = "day7-invalid-chain"
+    chain_id = "CHAIN_P3_P4_INVALID_001"
+
+    candidate_chain = [
+        "tool_access_test",
+        "permission_test",
+    ]
+
+    validator = ChainValidator(experiment_id)
+
+    result = validator.validate_chain(
+        chain_id,
+        candidate_chain,
+    )
+
+    assert result["status"] == "invalid"

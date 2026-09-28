@@ -235,27 +235,22 @@ class AdaptivePlanner:
                         1.0,
                     )
 
+
             # -------------------------------------------------
             # RAG-based relevance
             # -------------------------------------------------
 
-            knowledge_keywords = {
-                "permission": "permission",
-                "tool": "tool",
-                "memory": "memory",
-            }
+            rag_relevance = self.calculate_rag_relevance(
+                test_name=test_name,
+                retrieved_knowledge=planner_input.retrieved_knowledge,
+            )
 
-            for keyword, candidate_keyword in (
-                knowledge_keywords.items()
-            ):
-                if (
-                    keyword in knowledge_text
-                    and candidate_keyword in test_text
-                ):
-                    relevance = max(
-                        relevance,
-                        0.85,
-                    )
+            if rag_relevance > 0.0:
+                relevance = min(
+                    1.0,
+                    relevance + (0.10 * rag_relevance),
+                )
+
 
             # -------------------------------------------------
             # Adaptive dependency relevance
@@ -274,6 +269,21 @@ class AdaptivePlanner:
                     )
 
             # -------------------------------------------------
+            # RAG-based relevance
+            # -------------------------------------------------
+
+            rag_relevance = self.calculate_rag_relevance(
+                test_name=test_name,
+                retrieved_knowledge=planner_input.retrieved_knowledge,
+            )
+
+            if rag_relevance > 0.0:
+                relevance = min(
+                    1.0,
+                    relevance + (0.10 * rag_relevance),
+                )
+
+            # -------------------------------------------------
             # Expected information gain
             # -------------------------------------------------
 
@@ -290,17 +300,11 @@ class AdaptivePlanner:
 
             # RAG-supported candidates can provide more
             # context-specific information.
-            for keyword, candidate_keyword in (
-                knowledge_keywords.items()
-            ):
-                if (
-                    keyword in knowledge_text
-                    and candidate_keyword in test_text
-                ):
-                    information_gain = max(
-                        information_gain,
-                        0.85,
-                    )
+            if rag_relevance > 0.0:
+                information_gain = max(
+                    information_gain,
+                    0.95,
+                )
 
             # Dependency-aware information gain
             for completed_test, next_test in (
@@ -318,6 +322,7 @@ class AdaptivePlanner:
             # -------------------------------------------------
             # Testing cost
             # -------------------------------------------------
+
 
             testing_cost = 0.2
 

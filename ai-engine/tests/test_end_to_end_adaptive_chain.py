@@ -363,7 +363,9 @@ def test_day11_retrieved_knowledge_affects_next_test():
 
     without_rag = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -375,7 +377,9 @@ def test_day11_retrieved_knowledge_affects_next_test():
 
     with_rag = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -447,7 +451,9 @@ def test_day11_rag_boosts_tool_candidate():
 
     planner_input = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -482,7 +488,9 @@ def test_day11_finding_and_rag_strengthen_same_candidate():
                 evidence="Sensitive tool access bypassed authorization.",
             )
         ],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -676,4 +684,3 @@ def test_day11_complete_adaptive_experiment_trace():
         finding.confidence == 1.0
         for finding in findings
     )
-    

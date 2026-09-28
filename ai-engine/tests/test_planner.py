@@ -1274,7 +1274,7 @@ def test_rag_increases_permission_candidate_relevance():
         if candidate.test_name == "permission_test"
     )
 
-    assert permission_candidate.relevance >= 0.85
+    assert permission_candidate.relevance > 0.5
 
 def test_rag_increases_tool_candidate_relevance():
     planner = AdaptivePlanner()

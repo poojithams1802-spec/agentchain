@@ -764,7 +764,7 @@ def test_rag_knowledge_increases_candidate_relevance():
         for candidate in candidates
         if candidate.test_name == "tool_access_test"
     )
-    assert tool_candidate.relevance == 0.95
+    assert tool_candidate.relevance > 0.95
 
 def test_unrelated_rag_knowledge_does_not_change_candidate_relevance():
     from planner import AdaptivePlanner

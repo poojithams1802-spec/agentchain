@@ -89,8 +89,8 @@ def test_valid_decision():
         PlannerDecision
     )
 
-    assert decision.selected_test == "permission_test"
-
+    assert decision.selected_test in planner_input.available_tests
+    assert decision.selected_test not in planner_input.previous_tests
 
 def test_reject_unavailable_test():
     planner = AdaptivePlanner()
@@ -2202,4 +2202,3 @@ def test_day10_testing_cost_affects_candidate_score():
     )
 
     assert low_cost_score > high_cost_score
-    

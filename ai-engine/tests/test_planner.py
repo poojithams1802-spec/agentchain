@@ -1214,34 +1214,6 @@ def test_rag_relevance_for_tool_access_test():
     assert relevance > 0.0
     assert relevance <= 1.0
 
-def test_rag_relevance_for_tool_access_test():
-    planner = AdaptivePlanner()
-
-    relevance = planner.calculate_rag_relevance(
-        "tool_access_test",
-        [
-            "An agent should only invoke tools explicitly "
-            "permitted by its authorization policy."
-        ],
-    )
-
-    assert relevance > 0.0
-    assert relevance <= 1.0
-
-def test_rag_relevance_for_tool_access_test():
-    planner = AdaptivePlanner()
-
-    relevance = planner.calculate_rag_relevance(
-        "tool_access_test",
-        [
-            "An agent should only invoke tools explicitly "
-            "permitted by its authorization policy."
-        ],
-    )
-
-    assert relevance > 0.0
-    assert relevance <= 1.0
-
 def test_rag_relevance_for_memory_access_test():
     planner = AdaptivePlanner()
 
@@ -1270,3 +1242,565 @@ def test_rag_relevance_unrelated_knowledge():
     )
 
     assert relevance == 0.0
+
+
+def test_rag_increases_permission_candidate_relevance():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Sensitive requests must be checked "
+            "against current permissions and authorization."
+        ],
+        chain_state={},
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    permission_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "permission_test"
+    )
+
+    assert permission_candidate.relevance >= 0.85
+
+def test_rag_increases_tool_candidate_relevance():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Agents should not receive "
+            "unsafe tool access without authorization."
+        ],
+        chain_state={},
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    tool_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "tool_access_test"
+    )
+
+    assert tool_candidate.relevance >= 0.85
+
+def test_rag_increases_memory_candidate_relevance():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Information written to agent memory "
+            "must be validated before being trusted."
+        ],
+        chain_state={},
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    memory_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.test_name == "memory_access_test"
+    )
+
+    assert memory_candidate.relevance >= 0.85
+
+def test_rag_influences_candidate_ranking():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Sensitive tools must be checked "
+            "against authorization policies."
+        ],
+        chain_state={},
+    )
+
+    ranked_candidates = planner.rank_candidates(
+        planner_input
+    )
+
+    ranked_names = [
+        candidate.test_name
+        for candidate, score in ranked_candidates
+    ]
+
+    assert "tool_access_test" in ranked_names
+
+    tool_index = ranked_names.index(
+        "tool_access_test"
+    )
+
+    permission_index = ranked_names.index(
+        "permission_test"
+    )
+
+    assert tool_index < permission_index
+
+
+def test_finding_and_rag_together_influence_ranking():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="unsafe_tool_access",
+                severity="high",
+                confidence=1.0,
+                evidence=(
+                    "A sensitive tool was accessed "
+                    "without sufficient authorization."
+                ),
+            )
+        ],
+        previous_tests=[
+            "permission_test"
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Sensitive tools must be protected "
+            "by authorization checks."
+        ],
+        chain_state={},
+    )
+
+    ranked_candidates = planner.rank_candidates(
+        planner_input
+    )
+
+    assert ranked_candidates
+
+    selected_candidate = ranked_candidates[0][0]
+
+    assert (
+        selected_candidate.test_name
+        == "tool_access_test"
+    )
+
+    assert selected_candidate.relevance >= 0.95
+
+
+def test_planner_selects_rag_relevant_candidate(
+    monkeypatch
+):
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="unsafe_tool_access",
+                severity="high",
+                confidence=1.0,
+                evidence=(
+                    "Sensitive tool access was allowed "
+                    "without sufficient authorization."
+                ),
+            )
+        ],
+        previous_tests=[
+            "permission_test"
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[],
+        chain_state={},
+    )
+
+    def fake_retrieve(
+        query,
+        top_k=3,
+    ):
+        return [
+            "Sensitive tools must be checked "
+            "against authorization policies."
+        ]
+
+    def fake_generate_json(prompt):
+        return {
+            "selected_test": "tool_access_test",
+            "reason": (
+                "Tool access is relevant to the "
+                "current security finding."
+            ),
+            "priority": 0.9,
+            "confidence": 0.9,
+        }
+
+    monkeypatch.setattr(
+        planner.retriever,
+        "retrieve",
+        fake_retrieve,
+    )
+
+    monkeypatch.setattr(
+        planner.llm_client,
+        "generate_json",
+        fake_generate_json,
+    )
+
+    decision = planner.plan(
+        planner_input
+    )
+
+    assert (
+        decision.selected_test
+        == "tool_access_test"
+    )
+
+    assert decision.priority > 0.0
+    assert decision.confidence > 0.0
+
+    assert (
+        "Tool access"
+        in decision.reason
+    )
+
+    assert (
+        planner_input.retrieved_knowledge
+    )
+
+def test_day9_permission_scenario():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="weak_permission_control",
+                severity="high",
+                confidence=1.0,
+                evidence="Unauthorized permission access was reproduced.",
+            )
+        ],
+        previous_tests=[
+            "permission_test"
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Sensitive tool requests should be checked "
+            "against current permissions and authorization."
+        ],
+        chain_state={
+            "step": 2,
+        },
+    )
+
+    ranked = planner.rank_candidates(
+        planner_input
+    )
+
+    assert ranked
+
+    selected = ranked[0][0]
+
+    assert selected.test_name == "tool_access_test"
+
+
+def test_day9_tool_access_scenario():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="unsafe_tool_access",
+                severity="high",
+                confidence=1.0,
+                evidence="Sensitive tool access bypassed authorization.",
+            )
+        ],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Information written to agent memory should be "
+            "validated before being treated as trusted instructions."
+        ],
+        chain_state={
+            "step": 3,
+        },
+    )
+
+    ranked = planner.rank_candidates(
+        planner_input
+    )
+
+    assert ranked
+
+    selected = ranked[0][0]
+
+    assert selected.test_name == "memory_access_test"
+
+def test_day9_memory_security_scenario():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="memory_validation_weakness",
+                severity="high",
+                confidence=1.0,
+                evidence="Untrusted information entered agent memory.",
+            )
+        ],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Information written to agent memory should be "
+            "validated and should not automatically be "
+            "treated as trusted instructions."
+        ],
+        chain_state={
+            "step": 3,
+        },
+    )
+
+    ranked = planner.rank_candidates(
+        planner_input
+    )
+
+    assert ranked
+
+    selected = ranked[0][0]
+
+    assert selected.test_name == "memory_access_test"
+
+
+def test_day9_memory_security_scenario():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="memory_validation_weakness",
+                severity="high",
+                confidence=1.0,
+                evidence="Untrusted information entered agent memory.",
+            )
+        ],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Information written to agent memory should be "
+            "validated and should not automatically be "
+            "treated as trusted instructions."
+        ],
+        chain_state={
+            "step": 3,
+        },
+    )
+
+    ranked = planner.rank_candidates(
+        planner_input
+    )
+
+    assert ranked
+
+    selected = ranked[0][0]
+
+    assert selected.test_name == "memory_access_test"
+
+
+def test_day9_planner_never_reselects_previous_test():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="unsafe_tool_access",
+                severity="high",
+                confidence=1.0,
+                evidence="Unsafe tool access reproduced.",
+            )
+        ],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Sensitive tools require authorization."
+        ],
+        chain_state={},
+    )
+
+    ranked = planner.rank_candidates(
+        planner_input
+    )
+
+    assert ranked
+
+    selected_names = [
+        candidate.test_name
+        for candidate, score in ranked
+    ]
+
+    assert (
+        "permission_test"
+        not in selected_names
+    )
+
+    assert (
+        "tool_access_test"
+        not in selected_names
+    )
+
+    assert (
+        "memory_access_test"
+        in selected_names
+    )
+
+def test_day9_complete_planner_scenario(
+    monkeypatch,
+):
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="weak_permission_control",
+                severity="high",
+                confidence=1.0,
+                evidence="Unauthorized permission access reproduced.",
+            )
+        ],
+        previous_tests=[
+            "permission_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[],
+        chain_state={
+            "step": 2,
+            "experiment_id": "DAY9_EXP_001",
+        },
+    )
+
+    def fake_retrieve(
+        query,
+        top_k=3,
+    ):
+        return [
+            "Sensitive tool requests should be checked "
+            "against current permissions and authorization."
+        ]
+
+    def fake_generate_json(prompt):
+        return {
+            "selected_test": "tool_access_test",
+            "reason": (
+                "The permission finding and retrieved "
+                "authorization knowledge indicate that "
+                "tool access should be tested next."
+            ),
+            "priority": 0.9,
+            "confidence": 0.9,
+        }
+
+    monkeypatch.setattr(
+        planner.retriever,
+        "retrieve",
+        fake_retrieve,
+    )
+
+    monkeypatch.setattr(
+        planner.llm_client,
+        "generate_json",
+        fake_generate_json,
+    )
+
+    decision = planner.plan(
+        planner_input
+    )
+
+    assert (
+        decision.selected_test
+        == "tool_access_test"
+    )
+
+    assert decision.priority > 0.0
+    assert decision.confidence > 0.0
+
+    assert (
+        "permission"
+        in decision.reason.lower()
+    )
+
+    assert (
+        "authorization"
+        in decision.reason.lower()
+    )
+
+    assert planner_input.retrieved_knowledge

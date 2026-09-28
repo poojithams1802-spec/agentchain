@@ -2106,10 +2106,9 @@ def test_day10_adaptive_choice_changes_with_finding():
                 evidence="Unauthorized permission access reproduced.",
             )
         ],
-        previous_tests=[
-            "permission_test",
-            "tool_access_test",
-        ],
+            previous_tests=[
+                "permission_test",
+            ],
         available_tests=[
             "permission_test",
             "tool_access_test",

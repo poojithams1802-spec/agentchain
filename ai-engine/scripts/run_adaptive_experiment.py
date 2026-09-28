@@ -66,9 +66,7 @@ class TracingPlanner:
 
         return decision
 
-
-def run_experiment() -> None:
-    experiment_id = "DAY12_DEMO"
+def run_experiment(experiment_id: str = "DAY12_DEMO") -> None:
 
     base_planner = AdaptivePlanner()
 
@@ -103,6 +101,19 @@ def run_experiment() -> None:
         max_tests=3,
     )
 
+
+    experiment_result = build_experiment_result(
+        experiment_id=experiment_id,
+        planner=planner,
+        planner_input=planner_input,
+        findings=findings,
+    )
+    print()
+    print("=" * 70)
+    print("STRUCTURED EXPERIMENT RESULT")
+    print("=" * 70)
+
+    print(experiment_result)
     print()
     print("=" * 70)
     print("EXPERIMENT FINDINGS")
@@ -214,6 +225,32 @@ def run_experiment() -> None:
     print()
     print("=" * 70)
 
+def build_experiment_result(
+    experiment_id: str,
+    planner,
+    planner_input,
+    findings,
+) -> dict:
+    return {
+        "experiment_id": experiment_id,
+        "test_sequence": list(
+            planner_input.previous_tests
+        ),
+        "finding_sequence": [
+            {
+                "finding": finding.finding,
+                "severity": finding.severity,
+                "confidence": finding.confidence,
+                "evidence": finding.evidence,
+            }
+            for finding in findings
+        ],
+        "planner_trace": list(planner.traces),
+        "tests_executed": len(
+            planner_input.previous_tests
+        ),
+        "findings_count": len(findings),
+    }
 
 if __name__ == "__main__":
     run_experiment()

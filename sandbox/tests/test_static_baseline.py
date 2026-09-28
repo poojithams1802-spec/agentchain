@@ -1,6 +1,9 @@
 import unittest
 
-from sandbox.baseline.static_baseline import run_static_baseline
+from sandbox.baseline.static_baseline import (
+    run_static_baseline,
+    validate_static_chain
+)
 
 
 class TestStaticBaseline(unittest.TestCase):
@@ -74,6 +77,86 @@ class TestStaticBaseline(unittest.TestCase):
                 test_result["confidence"],
                 1.0
             )
+
+    def test_static_research_metrics(self):
+
+        result = run_static_baseline("STATIC_TEST")
+
+        self.assertEqual(
+            result["total_tests"],
+            3
+        )
+
+        self.assertEqual(
+            result["total_findings"],
+            3
+        )
+
+        self.assertEqual(
+            result["average_confidence"],
+            1.0
+        )
+
+        self.assertEqual(
+            result["test_sequence"],
+            [
+                "permission_test",
+                "tool_access_test",
+                "memory_access_test"
+            ]
+        )
+
+    def test_static_chain_validation(self):
+
+        result = validate_static_chain(
+            "STATIC_TEST",
+            "STATIC_CHAIN_TEST"
+        )
+
+        self.assertEqual(
+            result["status"],
+            "completed"
+        )
+
+        self.assertEqual(
+            result["candidate_chain"],
+            [
+                "permission_test",
+                "tool_access_test",
+                "memory_access_test"
+            ]
+        )
+
+        validation = result["validation"]
+
+        self.assertEqual(
+            validation["status"],
+            "validated"
+        )
+
+        self.assertEqual(
+            validation["validated_steps"],
+            3
+        )
+
+        self.assertEqual(
+            validation["total_steps"],
+            3
+        )
+
+        self.assertEqual(
+            validation["chain_length"],
+            3
+        )
+
+        self.assertEqual(
+            validation["validation_rate"],
+            1.0
+        )
+
+        self.assertTrue(
+            validation["all_findings_reproduced"]
+        )
 
 
 if __name__ == "__main__":

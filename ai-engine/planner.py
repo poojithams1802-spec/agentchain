@@ -115,6 +115,30 @@ class AdaptivePlanner:
             if test not in previous_tests
         ]
 
+        dependencies = {
+            "permission_test": [],
+            "tool_access_test": [
+                "permission_test"
+            ],
+            "memory_access_test": [
+                "tool_access_test"
+            ],
+        }
+
+        eligible_tests = [
+            test
+            for test in unexecuted_tests
+            if all(
+                prerequisite in previous_tests
+                for prerequisite in dependencies.get(
+                    test,
+                    [],
+                )
+            )
+        ]
+
+        candidates = []
+
         candidates = []
 
         severity_weights = {
@@ -164,7 +188,7 @@ class AdaptivePlanner:
             "tool_access_test": "memory_access_test",
         }
 
-        for test_name in unexecuted_tests:
+        for test_name in eligible_tests:
             test_text = test_name.lower()
 
             # -------------------------------------------------

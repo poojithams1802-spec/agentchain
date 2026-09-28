@@ -1281,7 +1281,9 @@ def test_rag_increases_tool_candidate_relevance():
 
     planner_input = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test"
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -1311,7 +1313,10 @@ def test_rag_increases_memory_candidate_relevance():
 
     planner_input = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test"
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -1336,12 +1341,15 @@ def test_rag_increases_memory_candidate_relevance():
 
     assert memory_candidate.relevance >= 0.85
 
-def test_rag_influences_candidate_ranking():
+
+def test_rag_influences_eligible_candidate_scoring():
     planner = AdaptivePlanner()
 
     planner_input = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test"
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -1358,23 +1366,33 @@ def test_rag_influences_candidate_ranking():
         planner_input
     )
 
+    assert ranked_candidates
+
+    # Because permission_test has already been executed
+    # and memory_access_test depends on tool_access_test,
+    # tool_access_test is the only eligible candidate.
     ranked_names = [
         candidate.test_name
         for candidate, score in ranked_candidates
     ]
 
-    assert "tool_access_test" in ranked_names
-
-    tool_index = ranked_names.index(
+    assert ranked_names == [
         "tool_access_test"
-    )
+    ]
 
-    permission_index = ranked_names.index(
-        "permission_test"
-    )
+    selected_candidate = ranked_candidates[0][0]
 
-    assert tool_index < permission_index
+    assert selected_candidate.test_name == "tool_access_test"
 
+    # RAG knowledge about tool authorization must
+    # increase the candidate's relevance.
+    assert selected_candidate.relevance >= 0.85
+
+    # The candidate must have a valid positive score.
+    selected_score = ranked_candidates[0][1]
+
+    assert selected_score > 0.0
+    
 
 def test_finding_and_rag_together_influence_ranking():
     planner = AdaptivePlanner()
@@ -2116,7 +2134,10 @@ def test_day10_adaptive_choice_changes_with_finding():
                 evidence="Untrusted information entered agent memory.",
             )
         ],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test",
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -2202,3 +2223,89 @@ def test_day10_testing_cost_affects_candidate_score():
     )
 
     assert low_cost_score > high_cost_score
+
+
+def test_build_candidates_respects_prerequisite_dependencies():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    candidate_names = [
+        candidate.test_name
+        for candidate in candidates
+    ]
+
+    assert candidate_names == [
+        "permission_test"
+    ]
+
+
+def test_build_candidates_allows_tool_after_permission():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[
+            "permission_test"
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    candidate_names = [
+        candidate.test_name
+        for candidate in candidates
+    ]
+
+    assert candidate_names == [
+        "tool_access_test"
+    ]
+
+
+def test_build_candidates_allows_memory_after_tool():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+    )
+
+    candidates = planner.build_candidates(
+        planner_input
+    )
+
+    candidate_names = [
+        candidate.test_name
+        for candidate in candidates
+    ]
+
+    assert candidate_names == [
+        "memory_access_test"
+    ]

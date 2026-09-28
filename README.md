@@ -1,6 +1,6 @@
 # AgentChain
 
-AgentChain is a security research platform for testing and analyzing vulnerabilities in agentic AI systems.
+Adaptive Attack-Chain Discovery in Agentic AI Systems: A Knowledge-Guided Red-Teaming Framework
 
 ## Project Components
 

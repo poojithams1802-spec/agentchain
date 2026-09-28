@@ -9,7 +9,9 @@ from schemas import (
 )
 
 from planner import AdaptivePlanner
+from adaptive_loop import AdaptiveLoop
 from schemas import Finding, PlannerInput
+from scoring import CandidateMetadata
 
 
 def test_fallback_decision_uses_highest_ranked_candidate():
@@ -1804,3 +1806,400 @@ def test_day9_complete_planner_scenario(
     )
 
     assert planner_input.retrieved_knowledge
+
+
+def test_day10_adaptive_permission_to_tool():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="weak_permission_control",
+                severity="high",
+                confidence=1.0,
+                evidence="Unauthorized permission access reproduced.",
+            )
+        ],
+        previous_tests=["permission_test"],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Sensitive tools require proper permission and authorization."
+        ],
+        chain_state={
+            "step": 2,
+            "experiment_id": "DAY10_PERMISSION",
+        },
+    )
+
+    ranked = planner.rank_candidates(planner_input)
+
+    assert ranked
+
+    next_test = ranked[0][0].test_name
+
+    assert next_test == "tool_access_test"
+
+
+def test_day10_adaptive_tool_to_memory():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="unsafe_tool_access",
+                severity="high",
+                confidence=1.0,
+                evidence="Sensitive tool access bypassed authorization.",
+            )
+        ],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Untrusted information entering memory "
+            "must be validated before being trusted."
+        ],
+        chain_state={
+            "step": 3,
+            "experiment_id": "DAY10_TOOL",
+        },
+    )
+
+    ranked = planner.rank_candidates(planner_input)
+
+    assert ranked
+
+    next_test = ranked[0][0].test_name
+
+    assert next_test == "memory_access_test"
+
+
+def test_day10_adaptive_loop_changes_next_test():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[],
+        chain_state={
+            "experiment_id": "DAY10_LOOP",
+            "step": 1,
+        },
+    )
+
+    decisions = [
+        PlannerDecision(
+            selected_test="permission_test",
+            reason="Start with permission testing.",
+            priority=0.9,
+            confidence=0.9,
+        ),
+        PlannerDecision(
+            selected_test="tool_access_test",
+            reason="Permission weakness requires tool access testing.",
+            priority=0.9,
+            confidence=0.9,
+        ),
+    ]
+
+    class FakePlanner:
+        def __init__(self):
+            self.calls = 0
+
+        def plan(self, planner_input):
+            decision = decisions[self.calls]
+            self.calls += 1
+            return decision
+
+    fake_planner = FakePlanner()
+
+    loop = AdaptiveLoop(planner=fake_planner)
+
+    findings = loop.run(
+        planner_input=planner_input,
+        experiment_id="DAY10_LOOP",
+        max_tests=2,
+    )
+
+    assert len(findings) == 2
+
+    assert planner_input.previous_tests == [
+        "permission_test",
+        "tool_access_test",
+    ]
+
+    assert (
+        findings[0].finding
+        == "weak_permission_control"
+    )
+
+    assert (
+        findings[1].finding
+        == "unsafe_tool_access"
+    )
+
+
+def test_day10_finding_feedback_reaches_next_planner_call():
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[],
+        chain_state={
+            "experiment_id": "DAY10_FEEDBACK",
+        },
+    )
+
+    class InspectingPlanner:
+        def __init__(self):
+            self.calls = 0
+            self.second_call_findings = None
+
+        def plan(self, planner_input):
+            self.calls += 1
+
+            if self.calls == 1:
+                return PlannerDecision(
+                    selected_test="permission_test",
+                    reason="Initial permission test.",
+                    priority=0.9,
+                    confidence=0.9,
+                )
+
+            self.second_call_findings = list(
+                planner_input.findings
+            )
+
+            return PlannerDecision(
+                selected_test="tool_access_test",
+                reason="Follow up on permission finding.",
+                priority=0.9,
+                confidence=0.9,
+            )
+
+    inspecting_planner = InspectingPlanner()
+
+    loop = AdaptiveLoop(
+        planner=inspecting_planner
+    )
+
+    findings = loop.run(
+        planner_input=planner_input,
+        experiment_id="DAY10_FEEDBACK",
+        max_tests=2,
+    )
+
+    assert len(findings) == 2
+
+    assert (
+        inspecting_planner.second_call_findings
+    )
+
+    assert (
+        inspecting_planner.second_call_findings[0].finding
+        == "weak_permission_control"
+    )
+
+def test_day10_comparison_static_chain_follows_fixed_order():
+    static_chain = [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test",
+    ]
+
+    assert static_chain[0] == "permission_test"
+    assert static_chain[1] == "tool_access_test"
+    assert static_chain[2] == "memory_access_test"
+
+
+def test_day10_comparison_adaptive_chain_uses_finding():
+    planner = AdaptivePlanner()
+
+    planner_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="weak_permission_control",
+                severity="high",
+                confidence=1.0,
+                evidence="Unauthorized permission access reproduced.",
+            )
+        ],
+        previous_tests=[
+            "permission_test",
+        ],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Sensitive tools require proper permission "
+            "and authorization."
+        ],
+        chain_state={
+            "experiment_id": "DAY10_COMPARISON",
+            "step": 2,
+        },
+    )
+
+    ranked = planner.rank_candidates(
+        planner_input
+    )
+
+    assert ranked
+
+    adaptive_next_test = ranked[0][0].test_name
+
+    assert adaptive_next_test == "tool_access_test"
+
+    static_next_test = "tool_access_test"
+
+    assert adaptive_next_test == static_next_test
+
+def test_day10_adaptive_choice_changes_with_finding():
+    planner = AdaptivePlanner()
+
+    # Scenario A: permission weakness
+    permission_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="weak_permission_control",
+                severity="high",
+                confidence=1.0,
+                evidence="Unauthorized permission access reproduced.",
+            )
+        ],
+        previous_tests=["permission_test"],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Sensitive tools require proper permission and authorization."
+        ],
+        chain_state={"step": 2},
+    )
+
+    permission_ranked = planner.rank_candidates(
+        permission_input
+    )
+
+    permission_next = permission_ranked[0][0].test_name
+
+    # Scenario B: no permission finding; memory-related finding
+    memory_input = PlannerInput(
+        findings=[
+            Finding(
+                finding="memory_validation_weakness",
+                severity="high",
+                confidence=1.0,
+                evidence="Untrusted information entered agent memory.",
+            )
+        ],
+        previous_tests=[],
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
+        ],
+        retrieved_knowledge=[
+            "Agent memory should validate untrusted information "
+            "before treating it as trusted instructions."
+        ],
+        chain_state={"step": 1},
+    )
+
+    memory_ranked = planner.rank_candidates(
+        memory_input
+    )
+
+    memory_next = memory_ranked[0][0].test_name
+
+    assert permission_next == "tool_access_test"
+    assert memory_next == "memory_access_test"
+
+    # The planner reacted differently to the different findings.
+    assert permission_next != memory_next
+
+def test_day10_information_gain_affects_candidate_score():
+    planner = AdaptivePlanner()
+
+    low_gain = CandidateMetadata(
+        test_name="memory_access_test",
+        relevance=0.5,
+        severity=0.5,
+        confidence=0.5,
+        expected_information_gain=0.4,
+        testing_cost=0.3,
+    )
+
+    high_gain = CandidateMetadata(
+        test_name="tool_access_test",
+        relevance=0.5,
+        severity=0.5,
+        confidence=0.5,
+        expected_information_gain=0.9,
+        testing_cost=0.3,
+    )
+
+    low_score = planner.scorer.score_candidate(
+        low_gain
+    )
+
+    high_score = planner.scorer.score_candidate(
+        high_gain
+    )
+
+    assert high_score > low_score
+
+def test_day10_testing_cost_affects_candidate_score():
+    planner = AdaptivePlanner()
+
+    low_cost = CandidateMetadata(
+        test_name="tool_access_test",
+        relevance=0.8,
+        severity=0.8,
+        confidence=0.8,
+        expected_information_gain=0.8,
+        testing_cost=0.2,
+    )
+
+    high_cost = CandidateMetadata(
+        test_name="memory_access_test",
+        relevance=0.8,
+        severity=0.8,
+        confidence=0.8,
+        expected_information_gain=0.8,
+        testing_cost=0.8,
+    )
+
+    low_cost_score = planner.scorer.score_candidate(
+        low_cost
+    )
+
+    high_cost_score = planner.scorer.score_candidate(
+        high_cost
+    )
+
+    assert low_cost_score > high_cost_score
+    

@@ -272,13 +272,31 @@ class ChainValidator:
         # 7. Return validation result
         # ---------------------------------------------------------
 
+        validated_steps = sum(
+        step["valid"]
+        for step in step_results
+    )
+
+        total_steps = len(step_results)
+
+        validation_rate = (
+            validated_steps / total_steps
+            if total_steps > 0
+            else 0.0
+    )
+
+        all_findings_reproduced = (
+            total_steps > 0
+            and validated_steps == total_steps
+    )
+
         return {
             "chain_id": chain_id,
             "status": "validated" if all_steps_valid else "invalid",
-            "validated_steps": sum(
-                step["valid"]
-                for step in step_results
-            ),
-            "total_steps": len(step_results),
+            "validated_steps": validated_steps,
+            "total_steps": total_steps,
+            "chain_length": total_steps,
+            "validation_rate": validation_rate,
+            "all_findings_reproduced": all_findings_reproduced,
             "steps": step_results
         }

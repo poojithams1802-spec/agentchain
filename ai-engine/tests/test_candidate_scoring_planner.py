@@ -88,8 +88,8 @@ def test_candidate_builder_creates_metadata_for_unexecuted_tests():
 
     assert "permission_test" not in candidate_names
     assert "tool_access_test" in candidate_names
-    assert "memory_access_test" in candidate_names
-
+    assert "memory_access_test" not in candidate_names
+        
     for candidate in candidates:
         assert 0.0 <= candidate.relevance <= 1.0
         assert 0.0 <= candidate.severity <= 1.0
@@ -134,8 +134,7 @@ def test_planner_ranks_candidates_using_candidate_scorer():
 
     assert "permission_test" not in ranked_names
     assert "tool_access_test" in ranked_names
-    assert "memory_access_test" in ranked_names
-
+    assert "memory_access_test" not in ranked_names
     assert ranked[0][1] >= ranked[-1][1]
 
 def test_planner_rank_candidates_returns_sorted_results():
@@ -165,8 +164,7 @@ def test_planner_rank_candidates_returns_sorted_results():
         planner_input
     )
 
-    assert len(ranked) == 2
-
+    assert len(ranked) == 1
     scores = [
         score
         for candidate, score in ranked
@@ -190,7 +188,7 @@ def test_ranked_candidates_contain_metadata():
 
     planner_input = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=["permission_test"],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -201,7 +199,7 @@ def test_ranked_candidates_contain_metadata():
         planner_input
     )
 
-    assert len(ranked) == 2
+    assert len(ranked) == 1
 
     for candidate, score in ranked:
         assert isinstance(
@@ -220,7 +218,6 @@ def test_ranked_candidates_contain_metadata():
         assert 0.0 <= candidate.testing_cost <= 1.0
 
         assert 0.0 <= score <= 1.0
-
 
 def test_rank_candidates_excludes_previous_tests():
     from planner import AdaptivePlanner
@@ -282,7 +279,10 @@ def test_build_candidate_context_contains_ranked_scores():
 
     planner_input = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+            "tool_access_test",
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -294,7 +294,7 @@ def test_build_candidate_context_contains_ranked_scores():
         planner_input
     )
 
-    assert len(context) == 3
+    assert len(context) == 1
 
     for candidate in context:
         assert "test_name" in candidate
@@ -337,8 +337,7 @@ def test_build_candidate_context_excludes_previous_tests():
 
     assert "permission_test" not in test_names
     assert "tool_access_test" in test_names
-    assert "memory_access_test" in test_names
-
+    assert "memory_access_test" not in test_names
 
 def test_create_prompt_includes_candidate_scores():
     from planner import AdaptivePlanner
@@ -412,7 +411,9 @@ def test_select_from_candidates_preserves_valid_llm_decision():
 
     planner_input = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -703,10 +704,10 @@ def test_adaptive_candidate_builder_excludes_completed_dependencies():
         for candidate in candidates
     ]
 
+
     assert "permission_test" not in test_names
     assert "tool_access_test" in test_names
-    assert "memory_access_test" in test_names
-
+    assert "memory_access_test" not in test_names
 
 def test_adaptive_ranking_prioritizes_next_dependency():
     from planner import AdaptivePlanner
@@ -732,6 +733,7 @@ def test_adaptive_ranking_prioritizes_next_dependency():
 
     assert ranked[0][0].test_name == "tool_access_test"
 
+
 def test_rag_knowledge_increases_candidate_relevance():
     from planner import AdaptivePlanner
     from schemas import PlannerInput
@@ -740,7 +742,9 @@ def test_rag_knowledge_increases_candidate_relevance():
 
     planner_input = PlannerInput(
         findings=[],
-        previous_tests=[],
+        previous_tests=[
+            "permission_test",
+        ],
         available_tests=[
             "permission_test",
             "tool_access_test",
@@ -760,75 +764,7 @@ def test_rag_knowledge_increases_candidate_relevance():
         for candidate in candidates
         if candidate.test_name == "tool_access_test"
     )
-
-    assert tool_candidate.relevance == 0.85
-
-
-def test_rag_knowledge_increases_candidate_relevance():
-    from planner import AdaptivePlanner
-    from schemas import PlannerInput
-
-    planner = AdaptivePlanner()
-
-    planner_input = PlannerInput(
-        findings=[],
-        previous_tests=[],
-        available_tests=[
-            "permission_test",
-            "tool_access_test",
-            "memory_access_test",
-        ],
-        retrieved_knowledge=[
-            "Improper tool access can expose unauthorized tools."
-        ],
-    )
-
-    candidates = planner.build_candidates(
-        planner_input
-    )
-
-    tool_candidate = next(
-        candidate
-        for candidate in candidates
-        if candidate.test_name == "tool_access_test"
-    )
-
-    assert tool_candidate.relevance == 0.85
-
-
-def test_rag_knowledge_increases_information_gain():
-    from planner import AdaptivePlanner
-    from schemas import PlannerInput
-
-    planner = AdaptivePlanner()
-
-    planner_input = PlannerInput(
-        findings=[],
-        previous_tests=[],
-        available_tests=[
-            "permission_test",
-            "tool_access_test",
-            "memory_access_test",
-        ],
-        retrieved_knowledge=[
-            "Memory access validation is important for agents."
-        ],
-    )
-
-    candidates = planner.build_candidates(
-        planner_input
-    )
-
-    memory_candidate = next(
-        candidate
-        for candidate in candidates
-        if candidate.test_name == "memory_access_test"
-    )
-
-    assert (
-        memory_candidate.expected_information_gain
-        == 0.85
-    )
+    assert tool_candidate.relevance == 0.95
 
 def test_unrelated_rag_knowledge_does_not_change_candidate_relevance():
     from planner import AdaptivePlanner

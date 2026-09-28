@@ -1392,7 +1392,7 @@ def test_rag_influences_eligible_candidate_scoring():
     selected_score = ranked_candidates[0][1]
 
     assert selected_score > 0.0
-    
+
 
 def test_finding_and_rag_together_influence_ranking():
     planner = AdaptivePlanner()
@@ -2106,7 +2106,9 @@ def test_day10_adaptive_choice_changes_with_finding():
                 evidence="Unauthorized permission access reproduced.",
             )
         ],
-        previous_tests=["permission_test"],
+            previous_tests=[
+                "permission_test",
+            ],
         available_tests=[
             "permission_test",
             "tool_access_test",

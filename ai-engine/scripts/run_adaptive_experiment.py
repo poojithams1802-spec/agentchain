@@ -1,5 +1,11 @@
 import sys
+import json
 from pathlib import Path
+
+
+# ============================================================
+# PATH SETUP
+# ============================================================
 
 AI_ENGINE_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -8,10 +14,19 @@ for path in (AI_ENGINE_ROOT, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+
+# ============================================================
+# IMPORTS
+# ============================================================
+
 from planner import AdaptivePlanner
 from adaptive_loop import AdaptiveLoop
 from schemas import PlannerInput
 
+
+# ============================================================
+# DISPLAY HELPERS
+# ============================================================
 
 def print_experiment_header(experiment_id: str) -> None:
     print("=" * 70)
@@ -21,7 +36,11 @@ def print_experiment_header(experiment_id: str) -> None:
     print("=" * 70)
 
 
-def print_finding(step: int, test_name: str, finding) -> None:
+def print_finding(
+    step: int,
+    test_name: str,
+    finding,
+) -> None:
     print()
     print(f"STEP {step}")
     print("-" * 50)
@@ -31,6 +50,10 @@ def print_finding(step: int, test_name: str, finding) -> None:
     print(f"Confidence : {finding.confidence:.2f}")
     print(f"Evidence   : {finding.evidence}")
 
+
+# ============================================================
+# PLANNER TRACE WRAPPER
+# ============================================================
 
 class TracingPlanner:
     def __init__(self, planner):
@@ -66,73 +89,88 @@ class TracingPlanner:
 
         return decision
 
-def run_experiment(experiment_id: str = "DAY12_DEMO") -> None:
 
-    base_planner = AdaptivePlanner()
+# ============================================================
+# BUILD STRUCTURED EXPERIMENT RESULT
+# ============================================================
 
-    planner = TracingPlanner(
-        base_planner
-    )
+def build_experiment_result(
+    experiment_id: str,
+    planner,
+    planner_input,
+    findings,
+) -> dict:
+    return {
+        "experiment_id": experiment_id,
 
-    planner_input = PlannerInput(
-        findings=[],
-        previous_tests=[],
-        available_tests=[
-            "permission_test",
-            "tool_access_test",
-            "memory_access_test",
+        "test_sequence": list(
+            planner_input.previous_tests
+        ),
+
+        "finding_sequence": [
+            {
+                "finding": finding.finding,
+                "severity": finding.severity,
+                "confidence": finding.confidence,
+                "evidence": finding.evidence,
+            }
+            for finding in findings
         ],
-        retrieved_knowledge=[],
-        chain_state={
-            "experiment_id": experiment_id,
-            "step": 1,
-        },
+
+        "planner_trace": list(
+            planner.traces
+        ),
+
+        "tests_executed": len(
+            planner_input.previous_tests
+        ),
+
+        "findings_count": len(
+            findings
+        ),
+    }
+
+
+# ============================================================
+# SAVE RESULT AS JSON
+# ============================================================
+
+def save_experiment_result(
+    result: dict,
+    output_path: str,
+) -> None:
+
+    path = Path(output_path)
+
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    loop = AdaptiveLoop(
-        planner=planner
-    )
+    with path.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
 
-    print_experiment_header(experiment_id)
-
-    findings = loop.run(
-        planner_input=planner_input,
-        experiment_id=experiment_id,
-        max_tests=3,
-    )
-
-
-    experiment_result = build_experiment_result(
-        experiment_id=experiment_id,
-        planner=planner,
-        planner_input=planner_input,
-        findings=findings,
-    )
-    print()
-    print("=" * 70)
-    print("STRUCTURED EXPERIMENT RESULT")
-    print("=" * 70)
-
-    print(experiment_result)
-    print()
-    print("=" * 70)
-    print("EXPERIMENT FINDINGS")
-    print("=" * 70)
-
-    for index, finding in enumerate(
-        findings,
-        start=1,
-    ):
-        if index <= len(planner_input.previous_tests):
-            test_name = planner_input.previous_tests[index - 1]
-        else:
-            test_name = "unknown"
-
-        print_finding(
-            step=index,
-            test_name=test_name,
-            finding=finding,
+        json.dump(
+            result,
+            file,
+            indent=2,
         )
+
+    print()
+    print(
+        f"[Result] Saved experiment result to: {path}"
+    )
+
+
+# ============================================================
+# PRINT PLANNER TRACE
+# ============================================================
+
+def print_planner_trace(
+    planner,
+) -> None:
 
     print()
     print("=" * 70)
@@ -140,8 +178,12 @@ def run_experiment(experiment_id: str = "DAY12_DEMO") -> None:
     print("=" * 70)
 
     for trace in planner.traces:
+
         print()
-        print(f"STEP {trace['step']}")
+        print(
+            f"STEP {trace['step']}"
+        )
+
         print("-" * 50)
 
         print(
@@ -168,89 +210,260 @@ def run_experiment(experiment_id: str = "DAY12_DEMO") -> None:
         print("Retrieved knowledge:")
 
         if trace["retrieved_knowledge"]:
-            for knowledge in trace["retrieved_knowledge"]:
-                print(f"  - {knowledge}")
+
+            for knowledge in trace[
+                "retrieved_knowledge"
+            ]:
+
+                print(
+                    f"  - {knowledge}"
+                )
+
         else:
             print("  - None")
 
         print()
         print("Candidate scores:")
 
-        for candidate in trace["candidate_scores"]:
-            print(
-                f"  {candidate['test']:<25} "
-                f"{candidate['score']:.4f}"
-            )
+        if trace["candidate_scores"]:
+
+            for candidate in trace[
+                "candidate_scores"
+            ]:
+
+                print(
+                    f"  "
+                    f"{candidate['test']:<25} "
+                    f"{candidate['score']:.4f}"
+                )
+
+        else:
+            print("  - None")
+
+
+# ============================================================
+# PRINT FINAL SUMMARY
+# ============================================================
+
+def print_final_summary(
+    result: dict,
+) -> None:
 
     print()
     print("=" * 70)
-    print("EXPERIMENT SUMMARY")
+    print("FINAL ADAPTIVE EXPERIMENT SUMMARY")
     print("=" * 70)
 
     print(
+        f"Experiment ID  : "
+        f"{result['experiment_id']}"
+    )
+
+    print(
         f"Tests executed : "
-        f"{len(planner_input.previous_tests)}"
+        f"{result['tests_executed']}"
     )
 
     print(
         f"Findings       : "
-        f"{len(findings)}"
+        f"{result['findings_count']}"
     )
 
     print()
     print("Test sequence:")
 
-    for index, test_name in enumerate(
-        planner_input.previous_tests,
+    for index, test in enumerate(
+        result["test_sequence"],
         start=1,
     ):
+
         print(
-            f"  {index}. {test_name}"
+            f"  {index}. {test}"
         )
 
     print()
     print("Finding sequence:")
 
     for index, finding in enumerate(
-        findings,
+        result["finding_sequence"],
         start=1,
     ):
+
         print(
             f"  {index}. "
-            f"{finding.finding} "
-            f"({finding.severity}, "
-            f"confidence={finding.confidence:.2f})"
+            f"{finding['finding']} "
+            f"({finding['severity']}, "
+            f"confidence="
+            f"{finding['confidence']:.2f})"
         )
 
     print()
     print("=" * 70)
 
-def build_experiment_result(
-    experiment_id: str,
-    planner,
-    planner_input,
-    findings,
+
+# ============================================================
+# MAIN EXPERIMENT
+# ============================================================
+
+def run_experiment(
+    experiment_id: str = "DAY14_FINAL",
 ) -> dict:
-    return {
-        "experiment_id": experiment_id,
-        "test_sequence": list(
-            planner_input.previous_tests
-        ),
-        "finding_sequence": [
-            {
-                "finding": finding.finding,
-                "severity": finding.severity,
-                "confidence": finding.confidence,
-                "evidence": finding.evidence,
-            }
-            for finding in findings
+
+    # --------------------------------------------------------
+    # Create base planner
+    # --------------------------------------------------------
+
+    base_planner = AdaptivePlanner()
+
+    # --------------------------------------------------------
+    # Wrap planner with tracing
+    # --------------------------------------------------------
+
+    planner = TracingPlanner(
+        base_planner
+    )
+
+    # --------------------------------------------------------
+    # Initial planner state
+    # --------------------------------------------------------
+
+    planner_input = PlannerInput(
+
+        findings=[],
+
+        previous_tests=[],
+
+        available_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test",
         ],
-        "planner_trace": list(planner.traces),
-        "tests_executed": len(
+
+        retrieved_knowledge=[],
+
+        chain_state={
+            "experiment_id": experiment_id,
+            "step": 1,
+        },
+    )
+
+    # --------------------------------------------------------
+    # Create adaptive loop
+    # --------------------------------------------------------
+
+    loop = AdaptiveLoop(
+        planner=planner
+    )
+
+    # --------------------------------------------------------
+    # Print experiment header
+    # --------------------------------------------------------
+
+    print_experiment_header(
+        experiment_id
+    )
+
+    # --------------------------------------------------------
+    # Run adaptive experiment
+    # --------------------------------------------------------
+
+    findings = loop.run(
+
+        planner_input=planner_input,
+
+        experiment_id=experiment_id,
+
+        max_tests=3,
+    )
+
+    # --------------------------------------------------------
+    # Print individual findings
+    # --------------------------------------------------------
+
+    print()
+    print("=" * 70)
+    print("EXPERIMENT FINDINGS")
+    print("=" * 70)
+
+    for index, finding in enumerate(
+        findings,
+        start=1,
+    ):
+
+        if index <= len(
             planner_input.previous_tests
-        ),
-        "findings_count": len(findings),
-    }
+        ):
+
+            test_name = (
+                planner_input.previous_tests[
+                    index - 1
+                ]
+            )
+
+        else:
+
+            test_name = "unknown"
+
+        print_finding(
+
+            step=index,
+
+            test_name=test_name,
+
+            finding=finding,
+        )
+
+    # --------------------------------------------------------
+    # Print planner reasoning
+    # --------------------------------------------------------
+
+    print_planner_trace(
+        planner
+    )
+
+    # --------------------------------------------------------
+    # Build structured result
+    # --------------------------------------------------------
+
+    result = build_experiment_result(
+
+        experiment_id=experiment_id,
+
+        planner=planner,
+
+        planner_input=planner_input,
+
+        findings=findings,
+    )
+
+    # --------------------------------------------------------
+    # Save JSON result
+    # --------------------------------------------------------
+
+    save_experiment_result(
+
+        result,
+
+        f"results/{experiment_id}.json",
+    )
+
+    # --------------------------------------------------------
+    # Print final summary
+    # --------------------------------------------------------
+
+    print_final_summary(
+        result
+    )
+
+    return result
+
+
+# ============================================================
+# ENTRY POINT
+# ============================================================
 
 if __name__ == "__main__":
-    run_experiment()
+
+    run_experiment(
+        "DAY14_FINAL"
+    )

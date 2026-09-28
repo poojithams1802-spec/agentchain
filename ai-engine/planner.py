@@ -29,6 +29,68 @@ class AdaptivePlanner:
         self.retriever = HybridKnowledgeRetriever()
         self.scorer = CandidateScorer()
 
+
+    def calculate_rag_relevance(
+        self,
+        test_name: str,
+        retrieved_knowledge: list[str],
+    ) -> float:
+        """
+        Estimate how strongly the retrieved security knowledge
+        relates to a candidate sandbox test.
+
+        Returns a normalized value between 0.0 and 1.0.
+        """
+
+        if not retrieved_knowledge:
+            return 0.0
+
+        combined_knowledge = " ".join(
+            retrieved_knowledge
+        ).lower()
+
+        keyword_groups = {
+            "permission_test": [
+                "permission",
+                "authorization",
+                "authorize",
+                "least privilege",
+                "access control",
+            ],
+            "tool_access_test": [
+                "tool",
+                "unsafe tool",
+                "tool access",
+                "sensitive tool",
+                "authorization",
+            ],
+            "memory_access_test": [
+                "memory",
+                "memory validation",
+                "trusted instructions",
+                "untrusted information",
+            ],
+        }
+
+        keywords = keyword_groups.get(
+            test_name,
+            [],
+        )
+
+        if not keywords:
+            return 0.0
+
+        matches = sum(
+            1
+            for keyword in keywords
+            if keyword in combined_knowledge
+        )
+
+        return min(
+            matches / len(keywords),
+            1.0,
+        )
+
     def build_candidates(
         self,
         planner_input: PlannerInput,

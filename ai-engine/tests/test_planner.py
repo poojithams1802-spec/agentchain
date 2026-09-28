@@ -140,14 +140,23 @@ def test_fallback_selects_unexecuted_test():
         reason="Testing fallback behavior."
     )
 
-    assert decision.selected_test == "tool_access_test"
+    assert (
+        decision.selected_test
+        in planner_input.available_tests
+    )
 
     assert (
         decision.selected_test
         not in planner_input.previous_tests
     )
 
-    assert decision.priority == 0.1
+    assert decision.priority > 0.0
+    assert decision.confidence == 0.1
+    assert (
+        decision.selected_test
+        not in planner_input.previous_tests
+    )
+
     assert decision.confidence == 0.1
 
 
@@ -238,8 +247,12 @@ def test_plan_uses_fallback_when_llm_fails(
         decision.selected_test
         not in planner_input.previous_tests
     )
-
-    assert decision.priority == 0.1
+    assert decision.priority > 0.0
+    assert decision.confidence == 0.1
+    assert (
+        "highest-ranked"
+        in decision.reason
+    )
     assert decision.confidence == 0.1
 
 def test_prompt_includes_retrieved_knowledge():
@@ -1019,8 +1032,13 @@ def test_plan_rejects_llm_previous_test_and_falls_back(
         not in planner_input.previous_tests
     )
 
-    assert decision.priority == 0.1
 
+    assert decision.priority > 0.0
+    assert decision.confidence == 0.1
+    assert (
+        "highest-ranked"
+        in decision.reason
+    )
     assert decision.confidence == 0.1
 
 
@@ -1077,8 +1095,12 @@ def test_plan_rejects_unavailable_llm_test(
         == "permission_test"
     )
 
-    assert decision.priority == 0.1
-
+    assert decision.priority > 0.0
+    assert decision.confidence == 0.1
+    assert (
+        "highest-ranked"
+        in decision.reason
+    )
     assert decision.confidence == 0.1
 
 
@@ -1163,3 +1185,88 @@ def test_fallback_decision_uses_highest_ranked_candidate(monkeypatch):
     assert decision.priority > 0.0
     assert decision.confidence == 0.1
     assert "highest-ranked" in decision.reason
+
+def test_rag_relevance_for_permission_test():
+    planner = AdaptivePlanner()
+
+    relevance = planner.calculate_rag_relevance(
+        "permission_test",
+        [
+            "Every sensitive tool request should be checked "
+            "against the current user or agent permissions."
+        ],
+    )
+
+    assert relevance > 0.0
+    assert relevance <= 1.0
+
+def test_rag_relevance_for_tool_access_test():
+    planner = AdaptivePlanner()
+
+    relevance = planner.calculate_rag_relevance(
+        "tool_access_test",
+        [
+            "An agent should only invoke tools explicitly "
+            "permitted by its authorization policy."
+        ],
+    )
+
+    assert relevance > 0.0
+    assert relevance <= 1.0
+
+def test_rag_relevance_for_tool_access_test():
+    planner = AdaptivePlanner()
+
+    relevance = planner.calculate_rag_relevance(
+        "tool_access_test",
+        [
+            "An agent should only invoke tools explicitly "
+            "permitted by its authorization policy."
+        ],
+    )
+
+    assert relevance > 0.0
+    assert relevance <= 1.0
+
+def test_rag_relevance_for_tool_access_test():
+    planner = AdaptivePlanner()
+
+    relevance = planner.calculate_rag_relevance(
+        "tool_access_test",
+        [
+            "An agent should only invoke tools explicitly "
+            "permitted by its authorization policy."
+        ],
+    )
+
+    assert relevance > 0.0
+    assert relevance <= 1.0
+
+def test_rag_relevance_for_memory_access_test():
+    planner = AdaptivePlanner()
+
+    relevance = planner.calculate_rag_relevance(
+        "memory_access_test",
+        [
+            "Information written to agent memory should be "
+            "validated and should not automatically be "
+            "treated as trusted instructions."
+        ],
+    )
+
+    assert relevance > 0.0
+    assert relevance <= 1.0
+
+
+def test_rag_relevance_unrelated_knowledge():
+    planner = AdaptivePlanner()
+
+    relevance = planner.calculate_rag_relevance(
+        "memory_access_test",
+        [
+            "An agent should only invoke tools explicitly "
+            "permitted by its authorization policy."
+        ],
+    )
+
+    assert relevance == 0.0

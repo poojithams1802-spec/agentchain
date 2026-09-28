@@ -11,10 +11,18 @@ class TestDay12Dataset(unittest.TestCase):
 
         dataset = build_day12_dataset()
 
+        # ----------------------------------------------
+        # Dataset size
+        # ----------------------------------------------
+
         self.assertEqual(
             dataset["total_experiments"],
-            2
+            3
         )
+
+        # ----------------------------------------------
+        # EXP007
+        # ----------------------------------------------
 
         self.assertEqual(
             dataset["experiments"][0]["experiment_id"],
@@ -22,8 +30,8 @@ class TestDay12Dataset(unittest.TestCase):
         )
 
         self.assertEqual(
-            dataset["experiments"][1]["experiment_id"],
-            "EXP008"
+            dataset["experiments"][0]["mode"],
+            "adaptive"
         )
 
         self.assertEqual(
@@ -31,18 +39,46 @@ class TestDay12Dataset(unittest.TestCase):
             1.0
         )
 
+        # ----------------------------------------------
+        # EXP008
+        # ----------------------------------------------
+
+        self.assertEqual(
+            dataset["experiments"][1]["experiment_id"],
+            "EXP008"
+        )
+
+        self.assertEqual(
+            dataset["experiments"][1]["mode"],
+            "adaptive"
+        )
+
         self.assertEqual(
             dataset["experiments"][1]["validation_rate"],
             0.3333
         )
 
+        # ----------------------------------------------
+        # STATIC_DAY12
+        # ----------------------------------------------
+
         self.assertEqual(
-            dataset["experiments"][0]["execution_count"],
-            3
+            dataset["experiments"][2]["experiment_id"],
+            "STATIC_DAY12"
         )
 
         self.assertEqual(
-            dataset["experiments"][1]["execution_count"],
+            dataset["experiments"][2]["mode"],
+            "static"
+        )
+
+        self.assertEqual(
+            dataset["experiments"][2]["validation_rate"],
+            1.0
+        )
+
+        self.assertEqual(
+            dataset["experiments"][2]["execution_count"],
             3
         )
 

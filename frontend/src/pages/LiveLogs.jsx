@@ -76,8 +76,16 @@ export default function LiveLogs() {
   }
 
   useEffect(() => {
+  if (!selected) return
+
+  load(selected)
+
+  const interval = setInterval(() => {
     load(selected)
-  }, [selected])
+  }, 3000)
+
+  return () => clearInterval(interval)
+}, [selected])
 
   return (
     <>

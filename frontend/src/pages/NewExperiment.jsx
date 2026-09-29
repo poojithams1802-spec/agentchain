@@ -54,11 +54,10 @@ export default function NewExperiment() {
                   type="button"
                   key={m}
                   onClick={() => setMode(m)}
-                  className={`rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${
-                    mode === m
+                  className={`rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${mode === m
                       ? 'border-signal bg-signal/10 text-signal'
                       : 'border-base-700 text-base-300 hover:border-base-500'
-                  }`}
+                    }`}
                 >
                   <div className="font-medium capitalize">{m}</div>
                   <div className="text-xs text-base-400 mt-0.5">
@@ -98,13 +97,28 @@ export default function NewExperiment() {
 
           {error && <p className="text-sm text-sev-critical">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-signal text-base-950 font-medium text-sm px-4 py-2 rounded-md hover:bg-signal-bright transition-colors disabled:opacity-50"
-          >
-            {submitting ? 'Starting…' : 'Start Experiment'}
-          </button>
+          
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="bg-signal text-base-950 font-medium text-sm px-4 py-2 rounded-md hover:bg-signal-bright transition-colors disabled:opacity-50"
+            >
+              {submitting ? 'Starting…' : 'Start Experiment'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              disabled={submitting}
+              className="border border-base-700 text-base-300 font-medium text-sm px-4 py-2 rounded-md hover:border-base-500 hover:text-base-100 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="text-xs text-base-500">
+            Starting an experiment will create the run and immediately begin testing.
+          </p>
         </form>
       </div>
     </>

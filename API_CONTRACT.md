@@ -1,10 +1,10 @@
 # AgentChain API Contract
 
-This document describes the backend API contract implemented in the current FastAPI service and the integration contracts planned for the AI planner and sandbox modules.
+This document describes the backend API contract implemented in the current FastAPI service and the integration contracts used by the AI planner and sandbox modules.
 
 Status legend:
 - Implemented: live FastAPI endpoint in the current backend
-- Integration contract: contract expected for future P3/P4 integration; not implemented in the backend yet
+- Integration contract: contract between backend and AI/sandbox modules; the backend currently integrates with these modules through their Python interfaces rather than exposing separate FastAPI endpoints
 
 ---
 
@@ -14,7 +14,7 @@ The current experiment lifecycle in the backend is intentionally simple and begi
 
 - `created`: experiment has been created but not started
 - `running`: experiment is currently active
-- `completed`: mock orchestration flow has finished
+- `completed`: experiment execution and the current orchestration/validation flow have finished
 
 These values are used by the experiment records stored in the MongoDB `experiments` collection.
 
@@ -35,7 +35,7 @@ Response:
 {
   "status": "ok"
 }
-```
+````
 
 ---
 
@@ -44,6 +44,7 @@ Response:
 Creates a new experiment record.
 
 Request JSON:
+
 ```json
 {
   "name": "Experiment 001",
@@ -53,11 +54,13 @@ Request JSON:
 ```
 
 Required fields:
-- `name`: string, minimum length 1
-- `mode`: string, minimum length 1
-- `max_tests`: integer greater than 0
+
+* `name`: string, minimum length 1
+* `mode`: string, minimum length 1
+* `max_tests`: integer greater than 0
 
 Response JSON:
+
 ```json
 {
   "experiment_id": "EXP001",
@@ -66,8 +69,9 @@ Response JSON:
 ```
 
 Notes:
-- `experiment_id` is generated as `EXP` + a zero-padded numeric counter.
-- The new document is stored in the MongoDB `experiments` collection.
+
+* `experiment_id` is generated as `EXP` + a zero-padded numeric counter.
+* The new document is stored in the MongoDB `experiments` collection.
 
 ---
 
@@ -76,6 +80,7 @@ Notes:
 Returns all experiments.
 
 Response JSON:
+
 ```json
 [
   {
@@ -95,6 +100,7 @@ Response JSON:
 Returns one experiment by ID.
 
 Response JSON:
+
 ```json
 {
   "experiment_id": "EXP001",
@@ -106,8 +112,9 @@ Response JSON:
 ```
 
 If the experiment does not exist:
-- HTTP 404
-- body: `{"detail": "Experiment not found"}`
+
+* HTTP 404
+* body: `{"detail": "Experiment not found"}`
 
 ---
 
@@ -116,6 +123,7 @@ If the experiment does not exist:
 Returns log entries for an experiment from the MongoDB `experiment_logs` collection.
 
 Response JSON:
+
 ```json
 [
   {
@@ -126,9 +134,19 @@ Response JSON:
 ]
 ```
 
+Logs may include:
+
+* `Experiment started`
+* `Planner selected test: <test_name>`
+* `Sandbox completed: <test_name>`
+* `Candidate chain created: <chain_id>`
+* `Chain validation completed: <status>`
+* `Experiment completed`
+
 If the experiment does not exist:
-- HTTP 404
-- body: `{"detail": "Experiment not found"}`
+
+* HTTP 404
+* body: `{"detail": "Experiment not found"}`
 
 ---
 
@@ -137,22 +155,34 @@ If the experiment does not exist:
 Returns findings for an experiment from the MongoDB `findings` collection.
 
 Response JSON:
+
 ```json
 [
   {
     "experiment_id": "EXP001",
-    "test": "tool_access_test",
-    "finding": "Mock finding from sandbox",
-    "severity": "medium",
-    "evidence": "Mock evidence for orchestration testing",
+    "test": "permission_test",
+    "finding": "weak_permission_control",
+    "severity": "high",
+    "evidence": {
+      "permission": "DENIED",
+      "observed_behavior": "TOOL_ALLOWED"
+    },
+    "confidence": 1.0,
     "timestamp": "2026-09-25T12:34:56.789012+00:00"
   }
 ]
 ```
 
+Current sandbox findings may include:
+
+* `weak_permission_control`
+* `unsafe_tool_access`
+* `memory_validation_weakness`
+
 If the experiment does not exist:
-- HTTP 404
-- body: `{"detail": "Experiment not found"}`
+
+* HTTP 404
+* body: `{"detail": "Experiment not found"}`
 
 ---
 
@@ -161,54 +191,118 @@ If the experiment does not exist:
 Returns attack-chain records for an experiment from the MongoDB `attack_chains` collection.
 
 Response JSON:
+
 ```json
 [
   {
+    "chain_id": "CHAIN-d4f70fa4",
     "experiment_id": "EXP001",
-    "name": "example_chain",
-    "steps": ["step_1", "step_2"],
+    "name": "Adaptive Candidate Chain",
+    "steps": [
+      "permission_test",
+      "tool_access_test",
+      "memory_access_test"
+    ],
     "timestamp": "2026-09-25T12:34:56.789012+00:00"
   }
 ]
 ```
 
+The `chain_id` is a stable string identifier generated when the candidate chain is created.
+
 If the experiment does not exist:
-- HTTP 404
-- body: `{"detail": "Experiment not found"}`
+
+* HTTP 404
+* body: `{"detail": "Experiment not found"}`
 
 ---
 
 ### 2.8 POST /experiments/{experiment_id}/start
 
-This endpoint is a mock orchestration skeleton for the current backend phase.
+Starts and executes an experiment using the current P2 orchestration flow.
 
 Behavior:
+
 1. Verify the experiment exists.
 2. Update the experiment status to `running`.
 3. Insert a log: `"Experiment started"`.
-4. Execute a mock test: `"tool_access_test"`.
-5. Create a mock finding using the existing helper with:
-   - `test`: `tool_access_test`
-   - `finding`: `Mock finding from sandbox`
-   - `severity`: `medium`
-   - `evidence`: `Mock evidence for orchestration testing`
-6. Insert a log: `"Mock test executed: tool_access_test"`.
-7. Update the experiment status to `completed`.
-8. Insert a log: `"Experiment completed"`.
+4. Build the planner input using the current experiment findings and execution state.
+5. Call the P3 adaptive planner through its Python interface.
+6. Use the planner decision to select the next available sandbox test.
+7. Execute the selected test through the P4 sandbox executor.
+8. Store the resulting finding in MongoDB.
+9. Store orchestration logs.
+10. Repeat until the test budget is reached or no further test can be selected.
+11. Create a candidate attack chain from the executed test sequence.
+12. Validate the candidate chain using the P4 `ChainValidator`.
+13. Store the validation result in the MongoDB `evaluation_results` collection.
+14. Update the experiment status to `completed`.
+15. Insert a log: `"Experiment completed"`.
+
+Current adaptive sandbox tests are:
+
+* `permission_test`
+* `tool_access_test`
+* `memory_access_test`
 
 Response JSON:
+
 ```json
 {
-  "experiment_id": "EXP001",
+  "experiment_id": "EXP010",
   "status": "completed",
-  "executed_tests": ["tool_access_test"],
-  "findings_created": 1
+  "executed_tests": [
+    "permission_test",
+    "tool_access_test",
+    "memory_access_test"
+  ],
+  "findings_created": 3,
+  "sandbox_results": [
+    {
+      "status": "completed",
+      "test": "permission_test",
+      "finding": "weak_permission_control",
+      "severity": "high",
+      "evidence": {
+        "permission": "DENIED",
+        "observed_behavior": "TOOL_ALLOWED"
+      },
+      "confidence": 1.0
+    }
+  ],
+  "candidate_chain": {
+    "chain_id": "CHAIN-d4f70fa4",
+    "steps": [
+      "permission_test",
+      "tool_access_test",
+      "memory_access_test"
+    ]
+  },
+  "validation_result": {
+    "chain_id": "CHAIN-d4f70fa4",
+    "status": "validated",
+    "validated_steps": 3,
+    "total_steps": 3,
+    "chain_length": 3,
+    "validation_rate": 1.0,
+    "all_findings_reproduced": true
+  }
 }
 ```
 
+Notes:
+
+* The actual test sequence is selected through the adaptive planner and constrained by the available sandbox tests.
+* The backend passes the agreed P3 planner fields without renaming them.
+* Planner fallback behavior remains inside the P3 planner module.
+* P2 does not modify the planner's decision schema.
+* Candidate chain validation is performed using the P4 validator.
+* Validation results are stored in the `evaluation_results` collection.
+
 If the experiment does not exist:
-- HTTP 404
-- body: `{"detail": "Experiment not found"}`
+
+* HTTP 404
+* body: `{"detail": "Experiment not found"}`
 
 ---
 
@@ -217,6 +311,7 @@ If the experiment does not exist:
 Returns the current status of the experiment.
 
 Response JSON:
+
 ```json
 {
   "experiment_id": "EXP001",
@@ -225,53 +320,97 @@ Response JSON:
 ```
 
 If the experiment does not exist:
-- HTTP 404
-- body: `{"detail": "Experiment not found"}`
+
+* HTTP 404
+* body: `{"detail": "Experiment not found"}`
 
 ---
 
 ### 2.10 POST /chains/{chain_id}/validate
 
-Simple validation stub for a stored attack chain.
+Validates a stored candidate attack chain using the P4 `ChainValidator`.
 
 Behavior:
-- Checks whether the chain exists in the MongoDB `attack_chains` collection.
-- Returns HTTP 404 if it does not exist.
-- Otherwise returns a simple validation payload using the stored chain steps.
+
+1. Check whether the chain exists in the MongoDB `attack_chains` collection.
+2. Retrieve the experiment ID and stored chain steps.
+3. Pass the chain steps to `ChainValidator`.
+4. Validate each step against the expected finding, evidence, and dependency requirements.
+5. Store the validation result in the MongoDB `evaluation_results` collection.
+6. Return the structured validation result.
 
 Response JSON:
+
 ```json
 {
-  "chain_id": "CHAIN001",
+  "chain_id": "CHAIN-d4f70fa4",
   "status": "validated",
-  "validated_steps": ["step_1", "step_2"]
+  "validated_steps": 3,
+  "total_steps": 3,
+  "chain_length": 3,
+  "validation_rate": 1.0,
+  "all_findings_reproduced": true,
+  "steps": [
+    {
+      "test": "permission_test",
+      "status": "completed",
+      "finding": "weak_permission_control",
+      "expected_finding": "weak_permission_control",
+      "finding_matches": true,
+      "severity": "high",
+      "evidence_exists": true,
+      "dependency_valid": true,
+      "dependency_error": null,
+      "valid": true
+    }
+  ]
 }
 ```
 
-This is a backend skeleton only; it does not perform real security validation logic.
+The validation result can contain one step entry for every test in the candidate chain.
+
+Validation checks include:
+
+* expected finding matches the observed finding
+* evidence exists
+* chain dependencies are satisfied
+* each step is valid
+
+If the chain does not exist:
+
+* HTTP 404
+* body: `{"detail": "Chain not found"}`
 
 ---
 
 ### 2.11 GET /analytics
 
-Returns a minimal aggregate summary based directly on the existing MongoDB collections.
+Returns aggregate metrics based on the existing MongoDB collections.
 
 Response JSON:
+
 ```json
 {
-  "total_experiments": 5,
-  "total_findings": 3,
-  "total_chains": 2
+  "total_experiments": 10,
+  "total_findings": 16,
+  "total_chains": 3,
+  "total_evaluation_results": 7
 }
 ```
 
-This endpoint only includes metrics that can be counted directly from the existing collections.
+Current metrics:
+
+* `total_experiments`: number of experiment records
+* `total_findings`: number of finding records
+* `total_chains`: number of attack-chain records
+* `total_evaluation_results`: number of stored evaluation results
 
 ---
 
 ## 3. Shared data model notes
 
 ### Experiment record
+
 ```json
 {
   "experiment_id": "EXP001",
@@ -283,18 +422,24 @@ This endpoint only includes metrics that can be counted directly from the existi
 ```
 
 ### Finding record
+
 ```json
 {
   "experiment_id": "EXP001",
-  "test": "tool_access_test",
-  "finding": "Mock finding from sandbox",
-  "severity": "medium",
-  "evidence": "Mock evidence for orchestration testing",
+  "test": "permission_test",
+  "finding": "weak_permission_control",
+  "severity": "high",
+  "evidence": {
+    "permission": "DENIED",
+    "observed_behavior": "TOOL_ALLOWED"
+  },
+  "confidence": 1.0,
   "timestamp": "2026-09-25T12:34:56.789012+00:00"
 }
 ```
 
 ### Log record
+
 ```json
 {
   "experiment_id": "EXP001",
@@ -304,26 +449,49 @@ This endpoint only includes metrics that can be counted directly from the existi
 ```
 
 ### Chain record
+
+```json
+{
+  "chain_id": "CHAIN-d4f70fa4",
+  "experiment_id": "EXP001",
+  "name": "Adaptive Candidate Chain",
+  "steps": [
+    "permission_test",
+    "tool_access_test",
+    "memory_access_test"
+  ],
+  "timestamp": "2026-09-25T12:34:56.789012+00:00"
+}
+```
+
+### Evaluation result record
+
 ```json
 {
   "experiment_id": "EXP001",
-  "name": "example_chain",
-  "steps": ["step_1", "step_2"],
+  "chain_id": "CHAIN-d4f70fa4",
+  "status": "validated",
+  "validated_steps": 3,
+  "total_steps": 3,
+  "chain_length": 3,
+  "validation_rate": 1.0,
+  "all_findings_reproduced": true,
   "timestamp": "2026-09-25T12:34:56.789012+00:00"
 }
 ```
 
 ---
 
-## 4. AI planner integration contract (not implemented yet)
+## 4. AI planner integration contract
 
-Status: Integration contract only.
+Status: Integration contract.
 
-The backend does not currently expose this endpoint. It is documented here to match the AI planner design in the project implementation specification.
+The backend does not currently expose `/ai/plan` as a separate FastAPI endpoint. P2 currently integrates with the P3 planner through its Python interface.
 
-### 4.1 POST /ai/plan
+### 4.1 Planner input
 
-Request JSON shape:
+The P2 orchestration passes the following fields to the P3 `PlannerInput` model:
+
 ```json
 {
   "findings": [
@@ -334,96 +502,197 @@ Request JSON shape:
       "evidence": "Permission check failed"
     }
   ],
-  "previous_tests": ["permission_test"],
-  "available_tests": ["tool_access_test", "file_access_test"],
-  "retrieved_knowledge": ["Least privilege policy", "File access restrictions"],
+  "previous_tests": [
+    "permission_test"
+  ],
+  "available_tests": [
+    "tool_access_test",
+    "memory_access_test"
+  ],
+  "retrieved_knowledge": [
+    "Least privilege policy",
+    "Tool access restrictions"
+  ],
   "chain_state": {
-    "current_step": 2,
-    "risk_level": "medium"
+    "experiment_id": "EXP001",
+    "executed_tests": [
+      "permission_test"
+    ]
   }
 }
 ```
 
-This matches the `PlannerInput` model used by the AI planner module.
+The fields are:
 
-Expected response JSON shape:
+* `findings`
+* `previous_tests`
+* `available_tests`
+* `retrieved_knowledge`
+* `chain_state`
+
+P2 does not rename or add fields to the shared planner input contract.
+
+### 4.2 Planner interface
+
+The current P2 integration calls:
+
+```text
+AdaptivePlanner.plan(planner_input)
+```
+
+The P3 planner owns:
+
+* RAG/security knowledge retrieval
+* scoring
+* LLM decision generation
+* decision validation
+* deterministic fallback behavior
+
+P2 owns:
+
+* experiment state
+* experiment ID
+* previous/executed tests
+* available test state
+* persistence of findings and logs
+* orchestration around planner and sandbox calls
+
+### 4.3 Planner response
+
+Expected `PlannerDecision` JSON shape:
+
 ```json
 {
   "selected_test": "tool_access_test",
-  "reason": "This test is relevant to the current finding and not previously executed.",
+  "reason": "This test is relevant to the current finding and has not been executed.",
   "priority": 0.8,
   "confidence": 0.9
 }
 ```
 
-This matches the `PlannerDecision` model used by the AI planner module.
+The planner response fields are:
+
+* `selected_test`
+* `reason`
+* `priority`
+* `confidence`
+
+P2 does not rename or modify these fields.
 
 Important:
-- This endpoint is an integration contract only.
-- It is not implemented in the FastAPI backend yet.
-- The AI planner and its LLM/retrieval logic remain in the separate AI engine component.
+
+* The P3 planner and its LLM/RAG/scoring logic remain in the separate AI engine component.
+* `/ai/plan` remains a documented integration contract rather than a separate FastAPI endpoint.
+* The direct Python interface is the current integration mechanism.
 
 ---
 
-## 5. Sandbox integration contract (not implemented yet)
+## 5. Sandbox integration contract
 
-Status: Integration contract only.
+Status: Integration contract.
 
-The backend does not currently expose this endpoint. It is documented here based on the project security sandbox design and the existing finding helper model.
+The backend does not currently expose `/sandbox/test` as a separate FastAPI endpoint. P2 currently integrates with the P4 sandbox through its Python interface.
 
-### 5.1 POST /sandbox/test
+### 5.1 Sandbox interface
 
-Request JSON shape (expected integration contract):
+The current P2 orchestration calls the P4 sandbox executor with:
+
+```text
+execute_sandbox_test(experiment_id, test_name)
+```
+
+Current supported test names:
+
+* `permission_test`
+* `tool_access_test`
+* `memory_access_test`
+
+Expected sandbox response shape:
+
 ```json
 {
-  "experiment_id": "EXP001",
-  "test": "tool_access_test",
-  "context": {
-    "allowed_tools": ["search", "memory"],
-    "permissions": {
-      "search": true,
-      "file": false
-    }
-  }
+  "status": "completed",
+  "test": "permission_test",
+  "finding": "weak_permission_control",
+  "severity": "high",
+  "evidence": {
+    "permission": "DENIED",
+    "observed_behavior": "TOOL_ALLOWED"
+  },
+  "confidence": 1.0
 }
 ```
 
-Expected response JSON shape:
-```json
-{
-  "experiment_id": "EXP001",
-  "test": "tool_access_test",
-  "status": "completed",
-  "finding": "Mock finding from sandbox",
-  "severity": "medium",
-  "confidence": 0.8,
-  "evidence": "Mock evidence for orchestration testing"
-}
+The P2 backend stores the returned finding and associated evidence in the MongoDB `findings` collection.
+
+### 5.2 Sandbox validation
+
+The P2 backend integrates with the P4 validator through:
+
+```text
+ChainValidator(experiment_id)
+```
+
+and:
+
+```text
+validate_chain(chain_id, executed_tests)
+```
+
+The validator checks:
+
+* expected finding
+* evidence
+* dependency order
+* step validity
+
+The current dependency order is:
+
+```text
+permission_test
+    ↓
+tool_access_test
+    ↓
+memory_access_test
 ```
 
 Important:
-- This endpoint is an integration contract only.
-- It is not implemented in the FastAPI backend yet.
-- It is expected to run sandbox logic separately from the API layer and return a structured finding payload similar to the current finding model.
+
+* Sandbox execution and validation logic remain owned by P4.
+* P2 does not create or modify sandbox vulnerabilities.
+* `/sandbox/test` remains a documented integration contract rather than a separate FastAPI endpoint.
+* The current backend uses the existing P4 Python interfaces directly.
 
 ---
 
 ## 6. Current implementation status summary
 
 Implemented in backend:
-- `/health`
-- `/experiments`
-- `/experiments/{experiment_id}`
-- `/experiments/{experiment_id}/logs`
-- `/experiments/{experiment_id}/findings`
-- `/experiments/{experiment_id}/chains`
-- `/experiments/{experiment_id}/start`
-- `/experiments/{experiment_id}/status`
-- `/chains/{chain_id}/validate`
-- `/analytics`
 
-Not implemented yet in backend:
-- `/ai/plan`
-- `/sandbox/test`
+* `/health`
+* `/experiments`
+* `/experiments/{experiment_id}`
+* `/experiments/{experiment_id}/logs`
+* `/experiments/{experiment_id}/findings`
+* `/experiments/{experiment_id}/chains`
+* `/experiments/{experiment_id}/start`
+* `/experiments/{experiment_id}/status`
+* `/chains/{chain_id}/validate`
+* `/analytics`
 
-Both are documented here as integration contracts for future P3/P4 work.
+Current internal integrations:
+
+* P3 `AdaptivePlanner.plan(...)`
+* P3 `PlannerInput`
+* P3 `PlannerDecision`
+* P4 `execute_sandbox_test(...)`
+* P4 `ChainValidator`
+
+Not exposed as separate FastAPI endpoints:
+
+* `/ai/plan`
+* `/sandbox/test`
+
+These remain documented integration contracts for the separate AI planner and sandbox modules.
+
+The current P2 backend acts as the central orchestration layer between the frontend, MongoDB, P3 AI planner, and P4 sandbox/validator.

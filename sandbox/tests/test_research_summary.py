@@ -19,12 +19,19 @@ class TestResearchSummary(unittest.TestCase):
             dataset
         )
 
+        # --------------------------------------------------
+        # Overall
+        # --------------------------------------------------
+
         self.assertEqual(
             summary["total_experiments"],
-            3
+            4
         )
 
+        # --------------------------------------------------
         # Static
+        # --------------------------------------------------
+
         self.assertEqual(
             summary["static"]["experiments"],
             1
@@ -55,35 +62,38 @@ class TestResearchSummary(unittest.TestCase):
             1.0
         )
 
+        # --------------------------------------------------
         # Adaptive
+        # --------------------------------------------------
+
         self.assertEqual(
             summary["adaptive"]["experiments"],
-            2
+            3
         )
 
         self.assertEqual(
             summary["adaptive"]["total_tests"],
-            6
+            9
         )
 
         self.assertEqual(
             summary["adaptive"]["total_findings"],
-            6
+            9
         )
 
         self.assertEqual(
             summary["adaptive"]["total_candidate_chains"],
-            2
+            3
         )
 
         self.assertEqual(
             summary["adaptive"]["total_validated_chains"],
-            1
+            2
         )
 
         expected_average_rate = (
-            1.0 + 0.3333
-        ) / 2
+            1.0 + 0.3333 + 1.0
+        ) / 3
 
         self.assertAlmostEqual(
             summary["adaptive"]["average_validation_rate"],

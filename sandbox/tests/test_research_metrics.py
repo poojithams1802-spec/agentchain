@@ -1,12 +1,7 @@
 import unittest
 
-from sandbox.evaluation.day12_dataset import (
-    build_day12_dataset
-)
-
-from sandbox.evaluation.research_metrics import (
-    calculate_research_metrics
-)
+from sandbox.evaluation.day12_dataset import build_day12_dataset
+from sandbox.evaluation.research_metrics import calculate_research_metrics
 
 
 class TestResearchMetrics(unittest.TestCase):
@@ -15,13 +10,11 @@ class TestResearchMetrics(unittest.TestCase):
 
         dataset = build_day12_dataset()
 
-        metrics = calculate_research_metrics(
-            dataset
-        )
+        metrics = calculate_research_metrics(dataset)
 
-        # ----------------------------------------------
-        # Static metrics
-        # ----------------------------------------------
+        # --------------------------------------------------
+        # Static
+        # --------------------------------------------------
 
         self.assertEqual(
             metrics["static"]["experiments"],
@@ -35,6 +28,11 @@ class TestResearchMetrics(unittest.TestCase):
 
         self.assertEqual(
             metrics["static"]["total_findings"],
+            3
+        )
+
+        self.assertEqual(
+            metrics["static"]["valid_findings"],
             3
         )
 
@@ -58,33 +56,48 @@ class TestResearchMetrics(unittest.TestCase):
             1.0
         )
 
-        # ----------------------------------------------
-        # Adaptive metrics
-        # ----------------------------------------------
+        self.assertEqual(
+            metrics["static"]["execution_count"],
+            3
+        )
+
+        self.assertEqual(
+            metrics["static"]["llm_calls"],
+            0
+        )
+
+        # --------------------------------------------------
+        # Adaptive
+        # --------------------------------------------------
 
         self.assertEqual(
             metrics["adaptive"]["experiments"],
-            2
+            3
         )
 
         self.assertEqual(
             metrics["adaptive"]["total_tests"],
-            6
+            9
         )
 
         self.assertEqual(
             metrics["adaptive"]["total_findings"],
-            6
+            9
+        )
+
+        self.assertEqual(
+            metrics["adaptive"]["valid_findings"],
+            9
         )
 
         self.assertEqual(
             metrics["adaptive"]["candidate_chains"],
-            2
+            3
         )
 
         self.assertEqual(
             metrics["adaptive"]["validated_chains"],
-            1
+            2
         )
 
         self.assertEqual(
@@ -93,8 +106,8 @@ class TestResearchMetrics(unittest.TestCase):
         )
 
         expected_validation_rate = (
-            1.0 + 0.3333
-        ) / 2
+            1.0 + 0.3333 + 1.0
+        ) / 3
 
         self.assertAlmostEqual(
             metrics["adaptive"]["validation_rate"],
@@ -104,7 +117,12 @@ class TestResearchMetrics(unittest.TestCase):
 
         self.assertEqual(
             metrics["adaptive"]["execution_count"],
-            6
+            9
+        )
+
+        self.assertEqual(
+            metrics["adaptive"]["llm_calls"],
+            0
         )
 
 

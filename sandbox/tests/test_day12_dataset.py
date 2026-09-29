@@ -17,7 +17,7 @@ class TestDay12Dataset(unittest.TestCase):
 
         self.assertEqual(
             dataset["total_experiments"],
-            3
+            4
         )
 
         # ----------------------------------------------
@@ -63,12 +63,12 @@ class TestDay12Dataset(unittest.TestCase):
         # ----------------------------------------------
 
         self.assertEqual(
-            dataset["experiments"][2]["experiment_id"],
+            dataset["experiments"][3]["experiment_id"],
             "STATIC_DAY12"
         )
 
         self.assertEqual(
-            dataset["experiments"][2]["mode"],
+            dataset["experiments"][3]["mode"],
             "static"
         )
 

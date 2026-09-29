@@ -105,8 +105,17 @@ export default function Analytics() {
   return (
     <>
       <TopBar
-        title="Analytics"
-        subtitle="Current AgentChain backend evaluation totals"
+      title="Analytics"
+      subtitle="Current AgentChain backend evaluation totals"
+      actions={
+      <button
+      onClick={load}
+      disabled={loading}
+      className="bg-signal text-base-950 text-xs font-medium px-3 py-1.5 rounded-md hover:bg-signal-bright transition-colors disabled:opacity-50"
+      >
+      {loading ? 'Refreshing…' : 'Refresh'}
+      </button>
+      }
       />
 
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">

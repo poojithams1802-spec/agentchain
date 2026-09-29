@@ -88,12 +88,23 @@ export default function Dashboard() {
         title="Dashboard"
         subtitle="Adaptive Attack-Chain Discovery — research overview"
         actions={
-          <Link
-            to="/new-experiment"
-            className="flex items-center gap-1.5 bg-signal text-base-950 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-signal-bright transition-colors"
-          >
-            <Plus size={15} /> New Experiment
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={load}
+              disabled={loading}
+              className="border border-base-700 text-base-300 text-xs font-medium px-3 py-1.5 rounded-md hover:border-signal hover:text-signal transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Refreshing…' : 'Refresh'}
+            </button>
+
+            <Link
+              to="/new-experiment"
+              className="flex items-center gap-1.5 bg-signal text-base-950 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-signal-bright transition-colors"
+            >
+              <Plus size={15} />
+              New Experiment
+            </Link>
+          </div>
         }
       />
 

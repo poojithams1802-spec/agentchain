@@ -46,5 +46,101 @@
     "topic": "validation",
     "title": "Evidence-based findings",
     "content": "A potential vulnerability should be supported by evidence produced by the controlled sandbox and should not be treated as validated without reproduction."
+  },
+  {
+    "id": "KB009",
+    "topic": "authorization",
+    "title": "Access control",
+    "content": "Authorization checks should occur before an agent performs an operation that requires elevated or restricted permissions."
+  },
+  {
+    "id": "KB010",
+    "topic": "authorization",
+    "title": "Authorization failure handling",
+    "content": "When an authorization check fails, the restricted operation should not be executed and the failure should be recorded as evidence."
+  },
+  {
+    "id": "KB011",
+    "topic": "agent_security",
+    "title": "Agent permission boundaries",
+    "content": "An agent's available capabilities should be limited to the permissions required for its defined task and execution context."
+  },
+  {
+    "id": "KB012",
+    "topic": "tool_security",
+    "title": "Tool exposure",
+    "content": "A tool being registered or exposed to an agent does not by itself establish that the agent is authorized to use it."
+  },
+  {
+    "id": "KB013",
+    "topic": "tool_security",
+    "title": "Sensitive tool authorization",
+    "content": "Tools that can access sensitive resources should verify authorization for each relevant request rather than relying only on tool availability."
+  },
+  {
+    "id": "KB014",
+    "topic": "memory_security",
+    "title": "Untrusted memory content",
+    "content": "Data retrieved from memory should be treated according to its trust level and should not automatically become an instruction for the agent."
+  },
+  {
+    "id": "KB015",
+    "topic": "memory_security",
+    "title": "Memory integrity",
+    "content": "Agent memory should have validation boundaries that prevent untrusted or malformed information from being accepted as trusted state."
+  },
+  {
+    "id": "KB016",
+    "topic": "prompt_injection",
+    "title": "Untrusted instructions",
+    "content": "Instructions originating from untrusted content should be distinguished from trusted system or application instructions."
+  },
+  {
+    "id": "KB017",
+    "topic": "prompt_injection",
+    "title": "Authorization protection",
+    "content": "Prompt content should not be allowed to bypass authorization rules or cause the agent to perform an operation outside its permitted capabilities."
+  },
+  {
+    "id": "KB018",
+    "topic": "chain_reasoning",
+    "title": "Adaptive test selection",
+    "content": "Adaptive security testing can use previous findings and test results to select the next permitted test in the controlled chain."
+  },
+  {
+    "id": "KB019",
+    "topic": "chain_reasoning",
+    "title": "Test dependencies",
+    "content": "A dependent security test should only be considered after its required prerequisite tests have completed successfully."
+  },
+  {
+    "id": "KB020",
+    "topic": "testing",
+    "title": "Controlled sandbox testing",
+    "content": "Security experiments should execute only against the designated controlled sandbox and should use the tests permitted by the experiment configuration."
+  },
+  {
+    "id": "KB021",
+    "topic": "testing",
+    "title": "Repeatable findings",
+    "content": "A security finding should be reproducible using the same controlled test conditions before it is treated as a confirmed result."
+  },
+  {
+    "id": "KB022",
+    "topic": "validation",
+    "title": "Finding validation",
+    "content": "Validation should compare the observed sandbox behavior and evidence against the expected behavior of the selected security test."
+  },
+  {
+    "id": "KB023",
+    "topic": "validation",
+    "title": "Evidence consistency",
+    "content": "Evidence recorded for a finding should correspond to the test that produced it and should support the reported finding."
+  },
+  {
+    "id": "KB024",
+    "topic": "validation",
+    "title": "Candidate test safety",
+    "content": "The adaptive planner should select only tests present in the available sandbox test allowlist and should not invent or execute arbitrary tests."
   }
 ]

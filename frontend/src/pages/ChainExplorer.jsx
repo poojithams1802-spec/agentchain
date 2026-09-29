@@ -66,11 +66,10 @@ function buildGraph(chains, findings) {
 
         style: {
           background: '#14171C',
-          border: `1.5px solid ${
-            finding
+          border: `1.5px solid ${finding
               ? SEV_COLOR[finding.severity]
               : '#3A4048'
-          }`,
+            }`,
           borderRadius: 8,
           color: '#E4E6EA',
           fontFamily: 'IBM Plex Mono, monospace',
@@ -221,6 +220,15 @@ export default function ChainExplorer() {
       <TopBar
         title="Attack Chain Explorer"
         subtitle="Multi-step findings linked into candidate chains"
+        actions={
+          <button
+            onClick={load}
+            disabled={state.loading}
+            className="border border-base-700 text-base-300 text-xs font-medium px-3 py-1.5 rounded-md hover:border-signal hover:text-signal transition-colors disabled:opacity-50"
+          >
+            {state.loading ? 'Refreshing…' : 'Refresh'}
+          </button>
+        }
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -308,9 +316,9 @@ export default function ChainExplorer() {
                       {typeof selectedNode.finding
                         .confidence === 'number'
                         ? `${Math.round(
-                            selectedNode.finding.confidence *
-                              100,
-                          )}%`
+                          selectedNode.finding.confidence *
+                          100,
+                        )}%`
                         : '—'}
                     </dd>
                   </div>

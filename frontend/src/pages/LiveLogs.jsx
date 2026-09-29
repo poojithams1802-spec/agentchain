@@ -76,16 +76,16 @@ export default function LiveLogs() {
   }
 
   useEffect(() => {
-  if (!selected) return
+    if (!selected) return
 
-  load(selected)
-
-  const interval = setInterval(() => {
     load(selected)
-  }, 3000)
 
-  return () => clearInterval(interval)
-}, [selected])
+    const interval = setInterval(() => {
+      load(selected)
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [selected])
 
   return (
     <>
@@ -93,22 +93,30 @@ export default function LiveLogs() {
         title="Live Logs"
         subtitle="Chronological event stream for a running or completed experiment"
         actions={
-          <select
-            value={selected}
-            onChange={(e) =>
-              setSelected(e.target.value)
-            }
-            className="bg-base-900 border border-base-700 rounded-md px-3 py-1.5 text-sm text-base-200 focus:border-signal outline-none"
-          >
-            {experiments.map((e) => (
-              <option
-                key={e.experiment_id}
-                value={e.experiment_id}
-              >
-                {e.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              className="bg-base-900 border border-base-700 rounded-md px-3 py-1.5 text-sm text-base-200 focus:border-signal outline-none"
+            >
+              {experiments.map((e) => (
+                <option
+                  key={e.experiment_id}
+                  value={e.experiment_id}
+                >
+                  {e.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => load(selected)}
+              disabled={state.loading || !selected}
+              className="border border-base-700 text-base-300 text-xs font-medium px-3 py-1.5 rounded-md hover:border-signal hover:text-signal transition-colors disabled:opacity-50"
+            >
+              {state.loading ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
         }
       />
 

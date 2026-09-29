@@ -61,7 +61,33 @@ def build_day12_dataset():
         validation_rate=0.3333,
         execution_count=3
     )
+        # --------------------------------------------------
+    # Adaptive Experiment: EXP010
+    # --------------------------------------------------
 
+    exp010 = create_research_result(
+        experiment_id="EXP010",
+        mode="adaptive",
+        executed_tests=[
+            "permission_test",
+            "tool_access_test",
+            "memory_access_test"
+        ],
+        findings=[
+            "weak_permission_control",
+            "unsafe_tool_access",
+            "memory_validation_weakness"
+        ],
+        candidate_chains=[
+            "CHAIN-d4f70fa4"
+        ],
+        validated_chains=[
+            "CHAIN-d4f70fa4"
+        ],
+        average_chain_length=3.0,
+        validation_rate=1.0,
+        execution_count=3
+    )
     # --------------------------------------------------
     # Static Experiment: STATIC_DAY12
     # --------------------------------------------------
@@ -104,6 +130,10 @@ def build_day12_dataset():
     add_experiment(
         dataset,
         exp008
+    )
+    add_experiment(
+        dataset,
+        exp010
     )
 
     add_experiment(

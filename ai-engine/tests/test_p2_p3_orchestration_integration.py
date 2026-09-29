@@ -57,7 +57,7 @@ def test_p2_to_p3_orchestration_integration(monkeypatch):
     # Verify P3 returned the agreed PlannerDecision structure.
     assert isinstance(decision, PlannerDecision)
 
-    assert set(decision.model_fields.keys()) == {
+    assert set(type(decision).model_fields.keys()) == {
         "selected_test",
         "reason",
         "priority",

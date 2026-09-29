@@ -34,10 +34,10 @@ export default function ExperimentHistory() {
           ])
 
           return {
-            ...exp,
-            findings_count: findings.length,
-            candidate_chains: chains.length,
-          }
+           ...exp,
+          findingsCount: findings.length,
+          chainsCount: chains.length,
+         }
         }),
       )
 
@@ -156,11 +156,11 @@ export default function ExperimentHistory() {
                     </td>
 
                     <td className="px-4 py-2.5 text-base-300 font-mono">
-                      {exp.findings_count}
+                      {exp.findingsCount}  
                     </td>
 
                     <td className="px-4 py-2.5 text-base-300 font-mono">
-                      {exp.candidate_chains}
+                      {exp.chainsCount}
                     </td>
                   </tr>
                 ))}

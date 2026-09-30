@@ -7,7 +7,11 @@ from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 
 from app.database import db
-from app.schemas import ExperimentCreate
+from app.schemas import (
+    ExperimentCreate,
+    MitigationSelectionRequest,
+)
+import app.mitigation_repository as mitigation_repository
 
 # Load environment variables
 load_dotenv("backend/.env")
@@ -237,6 +241,59 @@ def get_experiment_chains(
     )
 
     return chains
+
+
+@app.post("/experiments/{experiment_id}/mitigation/select")
+def select_mitigation(
+    experiment_id: str,
+    payload: MitigationSelectionRequest,
+):
+
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    chain = db.attack_chains.find_one(
+        {
+            "chain_id": payload.chain_id,
+            "experiment_id": experiment_id,
+        }
+    )
+
+    if chain is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Chain not found",
+        )
+
+    mitigation_run = (
+        mitigation_repository.create_mitigation_run(
+            experiment_id=experiment_id,
+            chain_id=payload.chain_id,
+            finding_context={
+                "finding": payload.finding,
+                "severity": payload.severity,
+                "evidence": payload.evidence,
+            },
+            attack_chain_context={
+                "steps": payload.attack_chain,
+                "context": payload.chain_context,
+            },
+        )
+    )
+
+    return {
+        "mitigation_run_id": mitigation_run[
+            "mitigation_run_id"
+        ],
+        "status": mitigation_run["status"],
+    }
 
 
 @app.post("/experiments/{experiment_id}/start")

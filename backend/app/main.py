@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from app.database import db
 from app.schemas import (
+    DefensiveControl,
     ExperimentCreate,
     MitigationSelectionRequest,
 )
@@ -29,6 +30,11 @@ sys.path.append(PROJECT_ROOT)
 
 from planner import AdaptivePlanner
 from schemas import PlannerInput, Finding
+from mitigation_schemas import (
+    MitigationFinding,
+    MitigationSelectorInput,
+)
+from mitigation_selector import MitigationSelector
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
 
@@ -288,11 +294,66 @@ def select_mitigation(
         )
     )
 
+    selector_input = MitigationSelectorInput(
+        findings=[
+            MitigationFinding(
+                finding=payload.finding,
+                severity=payload.severity,
+                confidence=0.0,
+                evidence=str(payload.evidence),
+            )
+        ],
+        attack_chain=payload.attack_chain,
+        available_controls=[
+            control.value
+            for control in DefensiveControl
+        ],
+        chain_state=payload.chain_context,
+        retrieved_knowledge=[],
+    )
+
+    try:
+        selector = MitigationSelector()
+        decision = selector.select(
+            selector_input
+        )
+    except Exception as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation selector failed",
+        ) from error
+
+    try:
+        selected_control = DefensiveControl(
+            decision.selected_control
+        )
+    except (TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation selector returned an invalid control",
+        ) from error
+
+    mitigation_repository.update_mitigation_run(
+        mitigation_run["mitigation_run_id"],
+        status="selected",
+        selection={
+            "selected_control": selected_control.value,
+            "reason": decision.reason,
+            "confidence": decision.confidence,
+            "priority": decision.priority,
+            "retrieved_knowledge": list(
+                selector_input.retrieved_knowledge
+            ),
+        },
+    )
+
     return {
         "mitigation_run_id": mitigation_run[
             "mitigation_run_id"
         ],
-        "status": mitigation_run["status"],
+        "selected_control": selected_control.value,
+        "reason": decision.reason,
+        "confidence": decision.confidence,
     }
 
 

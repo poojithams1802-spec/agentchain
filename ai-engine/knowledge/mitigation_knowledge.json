@@ -1,0 +1,102 @@
+[
+  {
+    "id": "MIT001",
+    "control": "authorization_gate",
+    "target_findings": [
+      "weak_permission_control"
+    ],
+    "topic": "authorization",
+    "title": "Authorization gate for weak permission control",
+    "content": "Enforce authorization before a protected operation is executed. The control must inspect the current permission state and deny the operation when permission is denied. This control directly mitigates weak_permission_control by enforcing authorization before tool execution.",
+    "validation": "Replay the same permission attack and verify that a denied permission produces a denied operation and the protected tool is not executed."
+  },
+  {
+    "id": "MIT002",
+    "control": "tool_allowlist",
+    "target_findings": [
+      "unsafe_tool_access"
+    ],
+    "topic": "tool_security",
+    "title": "Tool allowlist for unsafe tool exposure",
+    "content": "Restrict agent tool exposure to an explicit allowlist. A registered or available tool must not be callable unless it is present in the approved allowlist for the current agent context. This control directly mitigates unsafe_tool_access.",
+    "validation": "Replay the same tool-access attack and verify that a restricted tool is unavailable or rejected before execution."
+  },
+  {
+    "id": "MIT003",
+    "control": "memory_validation",
+    "target_findings": [
+      "memory_validation_weakness"
+    ],
+    "topic": "memory_security",
+    "title": "Memory validation boundary",
+    "content": "Validate memory data before accepting it as trusted agent state. Untrusted, malformed, or instruction-like memory content must not automatically become trusted state. This control directly mitigates memory_validation_weakness.",
+    "validation": "Replay the same memory attack and verify that unvalidated memory is rejected or marked untrusted and cannot be consumed as trusted state."
+  },
+  {
+    "id": "MIT004",
+    "control": "authorization_gate",
+    "target_findings": [
+      "unsafe_tool_access",
+      "weak_permission_control"
+    ],
+    "topic": "least_privilege",
+    "title": "Authorization and least privilege",
+    "content": "Sensitive operations should require an authorization decision and the agent should operate with minimum required permissions.",
+    "validation": "Repeat the relevant access attempt and confirm the authorization decision is enforced."
+  },
+  {
+    "id": "MIT005",
+    "control": "tool_allowlist",
+    "target_findings": [
+      "unsafe_tool_access"
+    ],
+    "topic": "tool_security",
+    "title": "Explicit tool exposure boundary",
+    "content": "Tool availability must be determined by an explicit security policy rather than by registration alone. Keep the set of exposed tools limited to the intended task.",
+    "validation": "Repeat the same tool exposure test and compare the available tool set before and after mitigation."
+  },
+  {
+    "id": "MIT006",
+    "control": "memory_validation",
+    "target_findings": [
+      "memory_validation_weakness"
+    ],
+    "topic": "memory_security",
+    "title": "Untrusted memory handling",
+    "content": "Treat memory retrieved from untrusted sources according to its trust level. Require validation at the memory boundary before the data can influence agent state or instructions.",
+    "validation": "Replay the same memory input and verify validation occurs before acceptance."
+  },
+  {
+    "id": "MIT007",
+    "control": "authorization_gate",
+    "target_findings": [
+      "weak_permission_control"
+    ],
+    "topic": "validation",
+    "title": "Evidence-driven authorization mitigation",
+    "content": "A permission-related finding should be mitigated with an authorization gate rather than by changing unrelated tool or memory behavior.",
+    "validation": "Use the same attack input and confirm the authorization failure is enforced."
+  },
+  {
+    "id": "MIT008",
+    "control": "tool_allowlist",
+    "target_findings": [
+      "unsafe_tool_access"
+    ],
+    "topic": "validation",
+    "title": "Evidence-driven tool mitigation",
+    "content": "A finding that a restricted tool is exposed should be mitigated by an explicit tool allowlist. Applying an unrelated control does not establish successful mitigation.",
+    "validation": "Replay the same attack and verify restricted tool exposure is removed."
+  },
+  {
+    "id": "MIT009",
+    "control": "memory_validation",
+    "target_findings": [
+      "memory_validation_weakness"
+    ],
+    "topic": "validation",
+    "title": "Evidence-driven memory mitigation",
+    "content": "A memory validation weakness should be addressed at the memory trust boundary. An unrelated authorization or tool control is not sufficient evidence of mitigation.",
+    "validation": "Replay the same attack and verify unvalidated memory is not accepted as trusted."
+  }
+]

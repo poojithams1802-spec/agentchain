@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import TopBar from '../components/TopBar'
 import { SeverityBadge } from '../components/Badges'
-import { LoadingState, ErrorState, EmptyState } from '../components/States'
+import {
+  LoadingState,
+  ErrorState,
+  EmptyState,
+} from '../components/States'
 import {
   listExperiments,
   getExperimentFindings,
@@ -35,17 +39,17 @@ export default function Findings() {
       const experiments = await listExperiments()
 
       const results = await Promise.all(
-        experiments.map((exp) =>
-          getExperimentFindings(exp.experiment_id),
+        experiments.map((experiment) =>
+          getExperimentFindings(
+            experiment.experiment_id,
+          ),
         ),
       )
-
-      const data = results.flat()
 
       setState({
         loading: false,
         error: null,
-        data,
+        data: results.flat(),
       })
     } catch (e) {
       setState({
@@ -60,15 +64,15 @@ export default function Findings() {
     load()
   }, [])
 
-  const filtered = useMemo(
-    () =>
-      severity === 'all'
-        ? state.data
-        : state.data.filter(
-            (f) => f.severity === severity,
-          ),
-    [state.data, severity],
-  )
+  const filtered = useMemo(() => {
+    if (severity === 'all') {
+      return state.data
+    }
+
+    return state.data.filter(
+      (finding) => finding.severity === severity,
+    )
+  }, [state.data, severity])
 
   return (
     <>
@@ -76,20 +80,30 @@ export default function Findings() {
         title="Findings"
         subtitle="Every finding recorded across all experiments"
         actions={
-          <div className="flex gap-1">
-            {SEVERITIES.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSeverity(s)}
-                className={`text-xs px-2.5 py-1 rounded-md border capitalize ${
-                  severity === s
-                    ? 'border-signal text-signal bg-signal/10'
-                    : 'border-base-700 text-base-400 hover:text-base-200'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={load}
+              disabled={state.loading}
+              className="border border-base-700 text-base-300 text-xs font-medium px-3 py-1.5 rounded-md hover:border-signal hover:text-signal transition-colors disabled:opacity-50"
+            >
+              {state.loading ? 'Refreshing…' : 'Refresh'}
+            </button>
+
+            <div className="flex gap-1">
+              {SEVERITIES.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setSeverity(item)}
+                  className={`text-xs px-2.5 py-1 rounded-md border capitalize ${
+                    severity === item
+                      ? 'border-signal text-signal bg-signal/10'
+                      : 'border-base-700 text-base-400 hover:text-base-200'
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
         }
       />
@@ -107,7 +121,9 @@ export default function Findings() {
         {!state.loading &&
           !state.error &&
           filtered.length === 0 && (
-            <EmptyState title="No findings match this filter" />
+            <EmptyState
+              title="No findings match this filter"
+            />
           )}
 
         {!state.loading &&
@@ -148,46 +164,54 @@ export default function Findings() {
                 </thead>
 
                 <tbody>
-                  {filtered.map((f, index) => (
+                  {filtered.map((finding, index) => (
                     <tr
-                      key={`${f.experiment_id}-${f.test}-${index}`}
+                      key={`${finding.experiment_id}-${finding.test}-${index}`}
                       className="border-t border-base-700 hover:bg-base-900/60"
                     >
                       <td className="px-4 py-2.5 font-mono text-xs text-base-400">
-                        {f.experiment_id}
+                        {finding.experiment_id}
                       </td>
 
                       <td className="px-4 py-2.5 font-mono text-xs text-base-300">
-                        {f.test}
+                        {finding.test}
                       </td>
 
                       <td className="px-4 py-2.5 text-base-100">
-                        {f.finding.replaceAll('_', ' ')}
+                        {finding.finding?.replaceAll('_', ' ')}
                       </td>
 
                       <td className="px-4 py-2.5">
                         <SeverityBadge
-                          severity={f.severity}
+                          severity={finding.severity}
                         />
                       </td>
 
                       <td className="px-4 py-2.5 font-mono text-base-300">
-                        {typeof f.confidence === 'number'
-                          ? `${Math.round(f.confidence * 100)}%`
+                        {typeof finding.confidence === 'number'
+                          ? `${Math.round(
+                              finding.confidence * 100,
+                            )}%`
                           : '—'}
                       </td>
 
                       <td
                         className="px-4 py-2.5 text-base-400 text-xs max-w-md truncate"
-                        title={JSON.stringify(f.evidence)}
+                        title={JSON.stringify(
+                          finding.evidence,
+                        )}
                       >
-                        {JSON.stringify(f.evidence)}
+                        {JSON.stringify(
+                          finding.evidence,
+                        )}
                       </td>
 
                       <td className="px-4 py-2.5 text-xs text-base-400">
-                        {new Date(
-                          f.timestamp,
-                        ).toLocaleString()}
+                        {finding.timestamp
+                          ? new Date(
+                              finding.timestamp,
+                            ).toLocaleString()
+                          : '—'}
                       </td>
                     </tr>
                   ))}

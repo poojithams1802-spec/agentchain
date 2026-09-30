@@ -2,8 +2,16 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import TopBar from '../components/TopBar'
 import StatCard from '../components/StatCard'
-import { ModeBadge, StatusBadge, SeverityBadge } from '../components/Badges'
-import { LoadingState, ErrorState, EmptyState } from '../components/States'
+import {
+  ModeBadge,
+  StatusBadge,
+  SeverityBadge,
+} from '../components/Badges'
+import {
+  LoadingState,
+  ErrorState,
+  EmptyState,
+} from '../components/States'
 import {
   getExperiment,
   getExperimentStatus,
@@ -26,8 +34,8 @@ export default function ExperimentDetails() {
   })
 
   async function load() {
-    setState((s) => ({
-      ...s,
+    setState((current) => ({
+      ...current,
       loading: true,
       error: null,
     }))
@@ -57,8 +65,8 @@ export default function ExperimentDetails() {
         logs,
       })
     } catch (e) {
-      setState((s) => ({
-        ...s,
+      setState((current) => ({
+        ...current,
         loading: false,
         error: e.message,
       }))
@@ -79,15 +87,13 @@ export default function ExperimentDetails() {
     logs,
   } = state
 
-  const completedTests = findings.length
-
   return (
     <>
       <TopBar
         title={exp ? exp.name : 'Experiment'}
         subtitle={id}
         actions={
-          exp && <ModeBadge mode={exp.mode} />
+          exp ? <ModeBadge mode={exp.mode} /> : null
         }
       />
 
@@ -103,6 +109,7 @@ export default function ExperimentDetails() {
 
         {!loading && !error && exp && (
           <>
+            {/* Summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatCard
                 label="Status"
@@ -115,7 +122,7 @@ export default function ExperimentDetails() {
 
               <StatCard
                 label="Tests with findings"
-                value={`${completedTests}/${exp.max_tests}`}
+                value={`${findings.length}/${exp.max_tests}`}
               />
 
               <StatCard
@@ -129,7 +136,8 @@ export default function ExperimentDetails() {
               />
             </div>
 
-            <div>
+            {/* Findings */}
+            <section>
               <h2 className="text-sm font-medium text-base-200 mb-3">
                 Findings
               </h2>
@@ -140,44 +148,51 @@ export default function ExperimentDetails() {
                 />
               ) : (
                 <div className="space-y-2">
-                  {findings.map((f, index) => (
+                  {findings.map((finding, index) => (
                     <div
-                      key={`${f.test}-${index}`}
+                      key={`${finding.test}-${index}`}
                       className="border border-base-700 rounded-lg px-4 py-3 bg-base-900"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs text-base-400">
-                            {f.test}
+                            {finding.test}
                           </span>
 
                           <span className="text-sm text-base-100">
-                            {f.finding.replaceAll('_', ' ')}
+                            {finding.finding?.replaceAll('_', ' ')}
                           </span>
                         </div>
 
                         <SeverityBadge
-                          severity={f.severity}
+                          severity={finding.severity}
                         />
                       </div>
 
                       <p className="text-xs text-base-400 mt-1.5">
                         Confidence:{' '}
-                        {typeof f.confidence === 'number'
-                          ? `${Math.round(f.confidence * 100)}%`
+                        {typeof finding.confidence === 'number'
+                          ? `${Math.round(
+                              finding.confidence * 100,
+                            )}%`
                           : '—'}
                       </p>
 
                       <pre className="text-xs text-base-400 mt-2 whitespace-pre-wrap font-mono">
-                        {JSON.stringify(f.evidence, null, 2)}
+                        {JSON.stringify(
+                          finding.evidence,
+                          null,
+                          2,
+                        )}
                       </pre>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </section>
 
-            <div>
+            {/* Chains */}
+            <section>
               <h2 className="text-sm font-medium text-base-200 mb-3">
                 Candidate chains
               </h2>
@@ -189,33 +204,34 @@ export default function ExperimentDetails() {
                 />
               ) : (
                 <div className="space-y-2">
-                  {chains.map((c) => (
+                  {chains.map((chain) => (
                     <div
-                      key={c.chain_id}
+                      key={chain.chain_id}
                       className="border border-base-700 rounded-lg px-4 py-3 bg-base-900"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-4">
                         <div>
                           <span className="font-mono text-xs text-base-400">
-                            {c.chain_id}
+                            {chain.chain_id}
                           </span>
 
                           <div className="text-sm text-base-100 mt-1">
-                            {c.steps.join(' → ')}
+                            {chain.steps.join(' → ')}
                           </div>
                         </div>
 
                         <span className="text-xs text-base-400">
-                          {c.steps.length} steps
+                          {chain.steps.length} steps
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </section>
 
-            <div>
+            {/* Logs */}
+            <section>
               <h2 className="text-sm font-medium text-base-200 mb-3">
                 Recent activity
               </h2>
@@ -227,24 +243,28 @@ export default function ExperimentDetails() {
                 View full live log →
               </Link>
 
-              <div className="mt-3 space-y-1.5 font-mono text-xs text-base-400 max-h-48 overflow-y-auto scrollbar-thin">
-                {logs.slice(0, 5).map((log, index) => (
-                  <div
-                    key={`${log.timestamp}-${index}`}
-                  >
-                    <span className="text-base-500">
-                      {new Date(
-                        log.timestamp,
-                      ).toLocaleTimeString()}
-                    </span>{' '}
+              {logs.length === 0 ? (
+                <p className="text-xs text-base-500 mt-3">
+                  No log events available.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-1.5 font-mono text-xs text-base-400 max-h-48 overflow-y-auto scrollbar-thin">
+                  {logs.slice(0, 5).map((log, index) => (
+                    <div key={`${log.timestamp}-${index}`}>
+                      <span className="text-base-500">
+                        {new Date(
+                          log.timestamp,
+                        ).toLocaleTimeString()}
+                      </span>{' '}
 
-                    <span className="text-base-300">
-                      {log.message}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+                      <span className="text-base-300">
+                        {log.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         )}
       </div>

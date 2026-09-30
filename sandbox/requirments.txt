@@ -1,0 +1,21 @@
+# AgentChain Phase 1 - Python dependencies
+
+# Backend / API
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+
+# Database
+pymongo
+
+# Authentication / security
+PyJWT
+passlib[bcrypt]
+
+# HTTP / API testing
+httpx
+
+# Testing
+pytest

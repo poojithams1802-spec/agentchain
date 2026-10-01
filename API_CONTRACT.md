@@ -696,3 +696,358 @@ Not exposed as separate FastAPI endpoints:
 These remain documented integration contracts for the separate AI planner and sandbox modules.
 
 The current P2 backend acts as the central orchestration layer between the frontend, MongoDB, P3 AI planner, and P4 sandbox/validator.
+
+---
+
+## 7. Phase 2 mitigation API contracts
+
+Status: Planned Phase 2 API contract. These endpoints are documented for the
+Phase 2 workflow but are not implemented as FastAPI routes yet.
+
+Phase 2 introduces a separate defensive-control selection contract. It does
+not change the Phase 1 test-selection contract:
+
+```text
+PlannerInput
+    → AdaptivePlanner.plan()
+    → PlannerDecision
+    → selected_test
+    → execute_sandbox_test()
+```
+
+The only allowed defensive-control values are:
+
+* `authorization_gate`
+* `tool_allowlist`
+* `memory_validation`
+
+The LLM may select only one of these predefined controls. It must not produce
+arbitrary patches, modify source code, deploy code, or perform autonomous code
+changes.
+
+### 7.1 POST /experiments/{experiment_id}/mitigation/select
+
+Requests selection of a predefined defensive control using finding and
+attack-chain context.
+
+Request:
+- Method: POST
+- Path: `/experiments/{experiment_id}/mitigation/select`
+- Body: `MitigationSelectionRequest`
+
+Request JSON:
+
+```json
+{
+  "chain_id": "CHAIN-d4f70fa4",
+  "finding": "unsafe_tool_access",
+  "severity": "high",
+  "evidence": {
+    "expected": "Tool should not be exposed.",
+    "actual": "Tool was exposed to the agent."
+  },
+  "attack_chain": [
+    "permission_test",
+    "tool_access_test"
+  ],
+  "chain_context": {
+    "validated_steps": 2,
+    "current_stage": "mitigation_selection"
+  }
+}
+```
+
+Important request fields:
+
+* `chain_id`: non-empty attack-chain identifier.
+* `finding`: finding being mitigated.
+* `severity`: finding severity.
+* `evidence`: finding evidence; the schema permits structured or scalar data.
+* `attack_chain`: one or more existing Phase 1 test names in chain order.
+* `chain_context`: additional chain-analysis context.
+
+The experiment identity is taken exclusively from the
+`{experiment_id}` path parameter.
+
+Response: `MitigationSelectionResponse`
+
+```json
+{
+  "mitigation_run_id": "MIT-001",
+  "selected_control": "tool_allowlist",
+  "reason": "The finding shows that a restricted tool was exposed.",
+  "confidence": 0.92
+}
+```
+
+The `selected_control` value must be exactly one of:
+
+* `authorization_gate`
+* `tool_allowlist`
+* `memory_validation`
+
+Expected errors:
+
+* HTTP 404 if the experiment or chain does not exist.
+* HTTP 422 for malformed request fields or an unsupported control value.
+* HTTP 409 if the chain is not eligible for mitigation selection.
+
+### 7.2 POST /experiments/{experiment_id}/mitigation/apply
+
+Applies the already-selected predefined defensive control. This endpoint does
+not select a new control and does not accept arbitrary patch instructions.
+
+Request:
+- Method: POST
+- Path: `/experiments/{experiment_id}/mitigation/apply`
+- Body: `MitigationApplyRequest`
+
+Request JSON:
+
+```json
+{
+  "mitigation_run_id": "MIT-001",
+  "selected_control": "tool_allowlist"
+}
+```
+
+The `mitigation_run_id` must identify the run created by the selection
+endpoint. The selected value must be one of `authorization_gate`,
+`tool_allowlist`, or `memory_validation`.
+
+Response: `ControlApplicationResult`
+
+```json
+{
+  "selected_control": "tool_allowlist",
+  "status": "applied",
+  "execution_info": {
+    "control_id": "tool_allowlist",
+    "applied_to": "CHAIN-d4f70fa4"
+  }
+}
+```
+
+Response fields:
+
+* `selected_control`: the approved control that was applied.
+* `status`: application status such as `applied` or `failed`.
+* `execution_info`: structured information about the controlled application.
+
+Expected errors:
+
+* HTTP 404 if the experiment or selected mitigation run does not exist.
+* HTTP 422 for an unsupported control value.
+* HTTP 409 if no control has been selected, the control was already applied,
+  or the experiment is not ready for application.
+* HTTP 500 or a structured failure response if controlled application fails.
+
+### 7.3 POST /experiments/{experiment_id}/mitigation/replay
+
+Replays the same attack/test after the defensive control has been applied.
+The replay must use the attack/test represented by the original before result;
+it is not a new attack selection and must not invoke the Phase 1 planner to
+choose a different test.
+
+Request:
+- Method: POST
+- Path: `/experiments/{experiment_id}/mitigation/replay`
+- Body: `MitigationReplayRequest`
+
+Request JSON:
+
+```json
+{
+  "mitigation_run_id": "MIT-001",
+  "test": "tool_access_test"
+}
+```
+
+The `mitigation_run_id` must identify the run whose control application has
+completed. `chain_id` is not required in this request because it is already
+associated with the mitigation run.
+
+Response: `BeforeAfterReplayResult`
+
+```json
+{
+  "test": "tool_access_test",
+  "before_result": {
+    "status": "completed",
+    "finding": "unsafe_tool_access",
+    "evidence": {
+      "actual": "Tool was exposed to the agent."
+    }
+  },
+  "after_result": {
+    "status": "completed",
+    "finding": null,
+    "evidence": {
+      "actual": "Tool access was blocked by the allowlist."
+    }
+  },
+  "blocked_after_mitigation": true
+}
+```
+
+Response fields:
+
+* `test`: the exact Phase 1 attack/test identity replayed.
+* `before_result`: the original result for that same attack/test.
+* `after_result`: the result from replaying that same attack/test after
+  mitigation.
+* `blocked_after_mitigation`: whether the attack was blocked after control
+  application.
+
+Expected errors:
+
+* HTTP 404 if the experiment or original replay result does not exist.
+* HTTP 409 if the selected control has not been applied or the replay test
+  does not match the original before-result test.
+* HTTP 422 for an invalid or missing test identity.
+
+### 7.4 GET /experiments/{experiment_id}/mitigation/result
+
+Retrieves the completed mitigation and chain-disruption result for an
+experiment.
+
+Request:
+- Method: GET
+- Path: `/experiments/{experiment_id}/mitigation/result?mitigation_run_id=MIT-001`
+- Body: none
+
+The `mitigation_run_id` query parameter identifies the run created by the
+selection endpoint. It must belong to the experiment in the path.
+
+Response: `MitigationResultResponse`
+
+```json
+{
+  "mitigation_run_id": "MIT-001",
+  "experiment_id": "EXP001",
+  "chain_id": "CHAIN-d4f70fa4",
+  "status": "completed",
+  "selection": {
+    "mitigation_run_id": "MIT-001",
+    "selected_control": "tool_allowlist",
+    "reason": "The finding shows that a restricted tool was exposed.",
+    "confidence": 0.92
+  },
+  "application": {
+    "selected_control": "tool_allowlist",
+    "status": "applied",
+    "execution_info": {
+      "control_id": "tool_allowlist"
+    }
+  },
+  "replay": {
+    "test": "tool_access_test",
+    "before_result": {
+      "status": "completed",
+      "finding": "unsafe_tool_access"
+    },
+    "after_result": {
+      "status": "completed",
+      "finding": null
+    },
+    "blocked_after_mitigation": true
+  },
+  "disruption": {
+    "before_validation": {
+      "status": "validated",
+      "validated_steps": 2,
+      "total_steps": 2
+    },
+    "after_validation": {
+      "status": "invalid",
+      "validated_steps": 1,
+      "total_steps": 2
+    },
+    "disrupted": true,
+    "residual_vulnerable_steps": [
+      "permission_test"
+    ],
+    "validation_result": {
+      "blocked_steps": [
+        "tool_access_test"
+      ],
+      "all_findings_reproduced": false
+    }
+  }
+}
+```
+
+Response fields:
+
+* `mitigation_run_id`: the mitigation workflow identity returned by selection.
+* `experiment_id`: the experiment associated with the mitigation run.
+* `chain_id`: the analyzed attack-chain identifier.
+* `status`: the mitigation workflow status.
+* `selection`: the `MitigationSelectionResponse` for this run.
+* `application`: the `ControlApplicationResult` for this run.
+* `replay`: the `BeforeAfterReplayResult` for this run.
+* `disruption`: the `ChainDisruptionResult` for this run.
+* `disruption.before_validation`: validation information before mitigation.
+* `disruption.after_validation`: validation information after mitigation and
+  same-chain replay.
+* `disruption.disrupted`: whether the defensive control disrupted the chain.
+* `disruption.residual_vulnerable_steps`: steps that remain vulnerable after
+  mitigation.
+* `disruption.validation_result`: additional structured before/after
+  validation details.
+
+Expected errors:
+
+* HTTP 404 if the experiment or mitigation result does not exist.
+* HTTP 409 if the mitigation run does not belong to the experiment, mitigation
+  has not completed, or same-attack replay is pending.
+
+### 7.5 Phase 2 ownership and flow
+
+The Phase 2 experiment-level workflow is:
+
+```text
+Attack-Chain Discovery
+    → Attack-Chain Analysis
+    → LLM + Security RAG
+    → Select Predefined Defensive Control
+    → Apply Control
+    → Replay SAME Attack
+    → Before/After Validation
+    → Chain Disruption Report
+```
+
+The workflow identity is carried through the endpoints as follows:
+
+```text
+POST .../mitigation/select
+    → returns mitigation_run_id
+POST .../mitigation/apply
+    → submits mitigation_run_id
+POST .../mitigation/replay
+    → submits mitigation_run_id
+GET .../mitigation/result?mitigation_run_id=...
+    → retrieves the same mitigation run
+```
+
+P2 owns:
+
+* the experiment-level API endpoints documented in this section
+* orchestration between P3 and P4
+* experiment, chain, mitigation, replay, and disruption state
+* persistence of the resulting records
+
+P3 owns:
+
+* selecting exactly one approved defensive control using LLM + Security RAG
+* returning the control selection rationale and confidence
+
+P4 owns:
+
+* applying the predefined defensive control in the controlled environment
+* replaying the same attack/test
+* performing before/after validation
+* reporting whether the chain was disrupted and which steps remain vulnerable
+
+These are internal P2-to-P3 and P2-to-P4 integration boundaries. Phase 2
+does not introduce public `/ai/mitigation` or `/sandbox/mitigation` routes.

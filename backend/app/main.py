@@ -7,7 +7,12 @@ from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 
 from app.database import db
-from app.schemas import ExperimentCreate
+from app.schemas import (
+    DefensiveControl,
+    ExperimentCreate,
+    MitigationSelectionRequest,
+)
+import app.mitigation_repository as mitigation_repository
 
 # Load environment variables
 load_dotenv("backend/.env")
@@ -25,6 +30,11 @@ sys.path.append(PROJECT_ROOT)
 
 from planner import AdaptivePlanner
 from schemas import PlannerInput, Finding
+from mitigation_schemas import (
+    MitigationFinding,
+    MitigationSelectorInput,
+)
+from mitigation_selector import MitigationSelector
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
 
@@ -237,6 +247,114 @@ def get_experiment_chains(
     )
 
     return chains
+
+
+@app.post("/experiments/{experiment_id}/mitigation/select")
+def select_mitigation(
+    experiment_id: str,
+    payload: MitigationSelectionRequest,
+):
+
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    chain = db.attack_chains.find_one(
+        {
+            "chain_id": payload.chain_id,
+            "experiment_id": experiment_id,
+        }
+    )
+
+    if chain is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Chain not found",
+        )
+
+    mitigation_run = (
+        mitigation_repository.create_mitigation_run(
+            experiment_id=experiment_id,
+            chain_id=payload.chain_id,
+            finding_context={
+                "finding": payload.finding,
+                "severity": payload.severity,
+                "evidence": payload.evidence,
+            },
+            attack_chain_context={
+                "steps": payload.attack_chain,
+                "context": payload.chain_context,
+            },
+        )
+    )
+
+    selector_input = MitigationSelectorInput(
+        findings=[
+            MitigationFinding(
+                finding=payload.finding,
+                severity=payload.severity,
+                confidence=0.0,
+                evidence=str(payload.evidence),
+            )
+        ],
+        attack_chain=payload.attack_chain,
+        available_controls=[
+            control.value
+            for control in DefensiveControl
+        ],
+        chain_state=payload.chain_context,
+        retrieved_knowledge=[],
+    )
+
+    try:
+        selector = MitigationSelector()
+        decision = selector.select(
+            selector_input
+        )
+    except Exception as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation selector failed",
+        ) from error
+
+    try:
+        selected_control = DefensiveControl(
+            decision.selected_control
+        )
+    except (TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation selector returned an invalid control",
+        ) from error
+
+    mitigation_repository.update_mitigation_run(
+        mitigation_run["mitigation_run_id"],
+        status="selected",
+        selection={
+            "selected_control": selected_control.value,
+            "reason": decision.reason,
+            "confidence": decision.confidence,
+            "priority": decision.priority,
+            "retrieved_knowledge": list(
+                selector_input.retrieved_knowledge
+            ),
+        },
+    )
+
+    return {
+        "mitigation_run_id": mitigation_run[
+            "mitigation_run_id"
+        ],
+        "selected_control": selected_control.value,
+        "reason": decision.reason,
+        "confidence": decision.confidence,
+    }
 
 
 @app.post("/experiments/{experiment_id}/start")

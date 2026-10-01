@@ -28,6 +28,8 @@ finally:
         else:
             sys.modules[name] = previous_module
 
+from app.schemas import MitigationResultResponse
+
 
 class FakeCollection:
     def __init__(self, documents=()):
@@ -390,10 +392,30 @@ def test_get_mitigation_result_returns_completed_run(replay_context):
             "status": "completed",
             "created_at": "2026-10-01T12:00:00+00:00",
             "updated_at": "2026-10-01T12:05:00+00:00",
-            "selection": {"selected_control": "tool_allowlist"},
-            "application": {"status": "applied"},
-            "replay": {"test": "tool_access_test"},
-            "disruption": {"disrupted": True},
+            "selection": {
+                "selected_control": "tool_allowlist",
+                "reason": "Restrict tool access.",
+                "confidence": 0.92,
+            },
+            "application": {
+                "selected_control": "tool_allowlist",
+                "status": "applied",
+                "execution_info": {},
+            },
+            "replay": {
+                "test": "tool_access_test",
+                "before_result": {},
+                "after_result": {},
+                "blocked_after_mitigation": True,
+            },
+            "disruption": {
+                "chain_id": "CHAIN001",
+                "before_validation": {},
+                "after_validation": {},
+                "disrupted": True,
+                "residual_vulnerable_steps": [],
+                "validation_result": {},
+            },
         }
     )
 
@@ -404,15 +426,25 @@ def test_get_mitigation_result_returns_completed_run(replay_context):
 
     assert response.status_code == 200
     body = response.json()
+    result = MitigationResultResponse.model_validate(body)
     assert body["mitigation_run_id"] == "MIT-1234abcd"
     assert body["experiment_id"] == "EXP001"
     assert body["status"] == "completed"
-    assert "selection" in body
-    assert "application" in body
-    assert "replay" in body
-    assert "disruption" in body
-    assert "created_at" in body
-    assert "updated_at" in body
+    assert result.selection.mitigation_run_id == "MIT-1234abcd"
+    assert result.selection.selected_control == "tool_allowlist"
+    assert result.selection.reason == "Restrict tool access."
+    assert result.selection.confidence == 0.92
+
+
+def test_get_mitigation_result_rejects_incomplete_run(replay_context):
+    client, _, _ = replay_context
+
+    response = client.get(
+        "/experiments/EXP001/mitigation/result",
+        params={"mitigation_run_id": "MIT-1234abcd"},
+    )
+
+    assert response.status_code == 409
 
 
 def test_get_mitigation_result_missing_run_returns_404(replay_context):

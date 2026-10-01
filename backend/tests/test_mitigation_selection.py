@@ -186,6 +186,21 @@ def test_cross_experiment_chain(mitigation_context):
     assert selector.requests == []
 
 
+def test_mismatched_attack_chain_is_rejected(mitigation_context):
+    client, fake_database, selector = mitigation_context
+    payload = selection_payload()
+    payload["attack_chain"] = ["tool_access_test"]
+
+    response = client.post(
+        "/experiments/EXP001/mitigation/select",
+        json=payload,
+    )
+
+    assert response.status_code == 409
+    assert selector.requests == []
+    assert fake_database.mitigation_runs.documents == []
+
+
 def test_invalid_control_from_p3(mitigation_context):
     client, fake_database, selector = mitigation_context
     selector.decision = SimpleNamespace(

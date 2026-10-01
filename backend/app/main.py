@@ -15,6 +15,7 @@ from app.schemas import (
     ExperimentCreate,
     MitigationApplyRequest,
     MitigationReplayRequest,
+    MitigationResultResponse,
     MitigationSelectionRequest,
 )
 import app.mitigation_repository as mitigation_repository
@@ -283,6 +284,12 @@ def select_mitigation(
         raise HTTPException(
             status_code=404,
             detail="Chain not found",
+        )
+
+    if payload.attack_chain != chain.get("steps"):
+        raise HTTPException(
+            status_code=409,
+            detail="Attack chain does not match stored chain",
         )
 
     mitigation_run = (
@@ -607,7 +614,10 @@ def replay_mitigation_run(
     return replay_result
 
 
-@app.get("/experiments/{experiment_id}/mitigation/result")
+@app.get(
+    "/experiments/{experiment_id}/mitigation/result",
+    response_model=MitigationResultResponse,
+)
 def get_mitigation_result(
     experiment_id: str,
     mitigation_run_id: str,
@@ -635,7 +645,28 @@ def get_mitigation_result(
             detail="Mitigation run not found",
         )
 
-    return mitigation_run
+    if mitigation_run.get("status") != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="Mitigation run is not completed",
+        )
+
+    selection = mitigation_run["selection"]
+    return MitigationResultResponse(
+        mitigation_run_id=mitigation_run["mitigation_run_id"],
+        experiment_id=mitigation_run["experiment_id"],
+        chain_id=mitigation_run["chain_id"],
+        status=mitigation_run["status"],
+        selection={
+            "mitigation_run_id": mitigation_run["mitigation_run_id"],
+            "selected_control": selection["selected_control"],
+            "reason": selection["reason"],
+            "confidence": selection["confidence"],
+        },
+        application=mitigation_run["application"],
+        replay=mitigation_run["replay"],
+        disruption=mitigation_run["disruption"],
+    )
 
 
 @app.post("/experiments/{experiment_id}/start")

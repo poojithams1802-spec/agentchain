@@ -8,10 +8,13 @@ from dotenv import load_dotenv
 
 from app.database import db
 from app.schemas import (
+    BeforeAfterReplayResult,
+    ChainDisruptionResult,
     ControlApplicationResult,
     DefensiveControl,
     ExperimentCreate,
     MitigationApplyRequest,
+    MitigationReplayRequest,
     MitigationSelectionRequest,
 )
 import app.mitigation_repository as mitigation_repository
@@ -38,6 +41,7 @@ from mitigation_schemas import (
 )
 from mitigation_selector import MitigationSelector
 from sandbox.mitigation.mitigation_executor import apply_mitigation
+from sandbox.mitigation.replay_executor import replay_attack
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
 
@@ -457,6 +461,181 @@ def apply_mitigation_to_run(
         "status": application_result["status"],
         "execution_info": application_result,
     }
+
+
+@app.post(
+    "/experiments/{experiment_id}/mitigation/replay",
+    response_model=BeforeAfterReplayResult,
+)
+def replay_mitigation_run(
+    experiment_id: str,
+    payload: MitigationReplayRequest,
+):
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    mitigation_run = mitigation_repository.get_mitigation_run(
+        payload.mitigation_run_id
+    )
+
+    if (
+        mitigation_run is None
+        or mitigation_run.get("experiment_id") != experiment_id
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Mitigation run not found",
+        )
+
+    selection = mitigation_run.get("selection")
+    selected_control_value = (
+        selection.get("selected_control")
+        if isinstance(selection, dict)
+        else None
+    )
+
+    if not selected_control_value:
+        raise HTTPException(
+            status_code=409,
+            detail="Mitigation run has no selected control",
+        )
+
+    try:
+        selected_control = DefensiveControl(selected_control_value)
+    except (TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Mitigation run has an invalid selected control",
+        ) from error
+
+    application = mitigation_run.get("application")
+    if (
+        mitigation_run.get("status") != "applied"
+        or not isinstance(application, dict)
+        or application.get("status") != "applied"
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Mitigation control has not been applied",
+        )
+
+    expected_tests = {
+        DefensiveControl.authorization_gate: "permission_test",
+        DefensiveControl.tool_allowlist: "tool_access_test",
+        DefensiveControl.memory_validation: "memory_access_test",
+    }
+    if expected_tests[selected_control] != payload.test:
+        raise HTTPException(
+            status_code=409,
+            detail="Replay test does not match selected control",
+        )
+
+    try:
+        p4_result = replay_attack(
+            experiment_id,
+            payload.test,
+            selected_control.value,
+        )
+    except Exception as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation replay failed",
+        ) from error
+
+    required_fields = {
+        "before",
+        "after",
+        "before_validation",
+        "after_validation",
+        "disrupted",
+        "residual_vulnerable_steps",
+        "validation_result",
+    }
+    if (
+        not isinstance(p4_result, dict)
+        or p4_result.get("status") != "completed"
+        or not required_fields.issubset(p4_result)
+    ):
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation replay returned an invalid result",
+        )
+
+    try:
+        replay_result = BeforeAfterReplayResult(
+            test=payload.test,
+            before_result=p4_result["before"],
+            after_result=p4_result["after"],
+            blocked_after_mitigation=p4_result.get(
+                "blocked_after_mitigation",
+                p4_result.get("attack_disrupted"),
+            ),
+        )
+        disruption_result = ChainDisruptionResult(
+            chain_id=mitigation_run["chain_id"],
+            before_validation=p4_result["before_validation"],
+            after_validation=p4_result["after_validation"],
+            disrupted=p4_result["disrupted"],
+            residual_vulnerable_steps=p4_result[
+                "residual_vulnerable_steps"
+            ],
+            validation_result=p4_result["validation_result"],
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation replay returned an invalid result",
+        ) from error
+
+    mitigation_repository.update_mitigation_run(
+        payload.mitigation_run_id,
+        status="completed",
+        replay={
+            **replay_result.model_dump(),
+            "replayed_at": datetime.now(timezone.utc).isoformat(),
+        },
+        disruption=disruption_result.model_dump(),
+    )
+
+    return replay_result
+
+
+@app.get("/experiments/{experiment_id}/mitigation/result")
+def get_mitigation_result(
+    experiment_id: str,
+    mitigation_run_id: str,
+):
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    mitigation_run = mitigation_repository.get_mitigation_run(
+        mitigation_run_id
+    )
+
+    if (
+        mitigation_run is None
+        or mitigation_run.get("experiment_id") != experiment_id
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Mitigation run not found",
+        )
+
+    return mitigation_run
 
 
 @app.post("/experiments/{experiment_id}/start")

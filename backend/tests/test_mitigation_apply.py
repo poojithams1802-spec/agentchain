@@ -234,6 +234,42 @@ def test_p4_failure_does_not_mark_run_applied(apply_context, monkeypatch):
     assert "application" not in mitigation_run
 
 
+def test_p4_exception_does_not_mark_run_applied(apply_context, monkeypatch):
+    client, fake_database, p4_calls = apply_context
+
+    def failed_apply(experiment_id, *, control_name):
+        p4_calls.append((experiment_id, control_name))
+        raise RuntimeError("application failed")
+
+    monkeypatch.setattr(main, "apply_mitigation", failed_apply)
+
+    response = client.post(
+        "/experiments/EXP001/mitigation/apply",
+        json=apply_payload(),
+    )
+
+    assert response.status_code == 502
+    assert p4_calls == [("EXP001", "tool_allowlist")]
+    mitigation_run = fake_database.mitigation_runs.documents[0]
+    assert mitigation_run["status"] == "selected"
+    assert "application" not in mitigation_run
+
+
+def test_corrupt_persisted_control_is_rejected(apply_context):
+    client, fake_database, p4_calls = apply_context
+    fake_database.mitigation_runs.documents[0]["selection"][
+        "selected_control"
+    ] = "arbitrary_patch"
+
+    response = client.post(
+        "/experiments/EXP001/mitigation/apply",
+        json=apply_payload(),
+    )
+
+    assert response.status_code == 409
+    assert p4_calls == []
+
+
 def test_application_persistence(apply_context):
     client, fake_database, _ = apply_context
 

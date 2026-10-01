@@ -8,8 +8,10 @@ from dotenv import load_dotenv
 
 from app.database import db
 from app.schemas import (
+    ControlApplicationResult,
     DefensiveControl,
     ExperimentCreate,
+    MitigationApplyRequest,
     MitigationSelectionRequest,
 )
 import app.mitigation_repository as mitigation_repository
@@ -35,6 +37,7 @@ from mitigation_schemas import (
     MitigationSelectorInput,
 )
 from mitigation_selector import MitigationSelector
+from sandbox.mitigation.mitigation_executor import apply_mitigation
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
 
@@ -354,6 +357,105 @@ def select_mitigation(
         "selected_control": selected_control.value,
         "reason": decision.reason,
         "confidence": decision.confidence,
+    }
+
+
+@app.post(
+    "/experiments/{experiment_id}/mitigation/apply",
+    response_model=ControlApplicationResult,
+)
+def apply_mitigation_to_run(
+    experiment_id: str,
+    payload: MitigationApplyRequest,
+):
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    mitigation_run = mitigation_repository.get_mitigation_run(
+        payload.mitigation_run_id
+    )
+
+    if (
+        mitigation_run is None
+        or mitigation_run.get("experiment_id") != experiment_id
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Mitigation run not found",
+        )
+
+    selection = mitigation_run.get("selection")
+    selected_control_value = (
+        selection.get("selected_control")
+        if isinstance(selection, dict)
+        else None
+    )
+
+    if not selected_control_value:
+        raise HTTPException(
+            status_code=409,
+            detail="Mitigation run has no selected control",
+        )
+
+    try:
+        selected_control = DefensiveControl(selected_control_value)
+        requested_control = DefensiveControl(payload.selected_control)
+    except (TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Mitigation run has an invalid selected control",
+        ) from error
+
+    if requested_control != selected_control:
+        raise HTTPException(
+            status_code=409,
+            detail="Selected control does not match mitigation run",
+        )
+
+    try:
+        application_result = apply_mitigation(
+            experiment_id,
+            control_name=selected_control.value,
+        )
+    except Exception as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation application failed",
+        ) from error
+
+    if (
+        not isinstance(application_result, dict)
+        or application_result.get("status") != "applied"
+    ):
+        raise HTTPException(
+            status_code=502,
+            detail="Mitigation application failed",
+        )
+
+    application = {
+        "selected_control": selected_control.value,
+        "status": application_result["status"],
+        "execution_info": application_result,
+        "applied_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    mitigation_repository.update_mitigation_run(
+        payload.mitigation_run_id,
+        status="applied",
+        application=application,
+    )
+
+    return {
+        "selected_control": selected_control.value,
+        "status": application_result["status"],
+        "execution_info": application_result,
     }
 
 

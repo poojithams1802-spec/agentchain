@@ -47,6 +47,23 @@ class FakeCollection:
                 document.update(deepcopy(update.get("$set", {})))
                 return
 
+    def insert_one(self, document):
+        self.documents.append(deepcopy(document))
+
+    def find(self, query=None, projection=None):
+        query = query or {}
+        return [
+            deepcopy(document)
+            for document in self.documents
+            if all(document.get(key) == value for key, value in query.items())
+        ]
+
+    def count_documents(self, query):
+        return sum(
+            all(document.get(key) == value for key, value in query.items())
+            for document in self.documents
+        )
+
 
 class FakeDatabase:
     def __init__(self):
@@ -55,7 +72,7 @@ class FakeDatabase:
                 {
                     "experiment_id": "EXP001",
                     "name": "test experiment",
-                    "mode": "test",
+                    "mode": "adaptive",
                     "max_tests": 1,
                     "status": "created",
                 }
@@ -73,6 +90,9 @@ class FakeDatabase:
                 }
             ]
         )
+        self.findings = FakeCollection()
+        self.attack_chains = FakeCollection()
+        self.evaluation_results = FakeCollection()
 
 
 def complete_p4_result(
@@ -82,10 +102,12 @@ def complete_p4_result(
 ):
     result = {
         "status": "completed",
+        "experiment_id": "EXP001",
         "test": test,
         "control": control,
         "before": {"status": "completed", "finding": "unsafe_tool_access"},
         "after": {"status": "completed", "finding": None},
+        "activation": {"status": "applied", "control": control},
         "attack_disrupted": True,
         "before_validation": {"status": "validated"},
         "after_validation": {"status": "invalid"},
@@ -368,6 +390,70 @@ def test_replay_and_disruption_persistence(replay_context):
         "residual_vulnerable_steps": ["permission_test"],
         "validation_result": {"all_findings_reproduced": False},
     }
+
+
+def test_successful_replay_persists_phase2_record_without_overwriting_phase1(
+    replay_context,
+):
+    client, fake_database, _ = replay_context
+    phase1_record = {
+        "experiment_id": "EXP000",
+        "chain_id": "CHAIN-PHASE1",
+        "status": "validated",
+        "validated_steps": 1,
+        "total_steps": 1,
+        "steps": [],
+        "timestamp": "2026-10-01T11:00:00+00:00",
+    }
+    fake_database.evaluation_results.insert_one(phase1_record)
+
+    response = client.post(
+        "/experiments/EXP001/mitigation/replay",
+        json=replay_payload(),
+    )
+
+    assert response.status_code == 200
+    assert fake_database.evaluation_results.documents[0] == phase1_record
+    phase2_records = fake_database.evaluation_results.find(
+        {"evaluation_type": "phase2_mitigation"}
+    )
+    assert len(phase2_records) == 1
+    assert phase2_records[0]["evaluation_type"] == "phase2_mitigation"
+    assert phase2_records[0]["experiment_id"] == "EXP001"
+    assert phase2_records[0]["timestamp"]
+    assert phase2_records[0]["mitigation_control"] == "tool_allowlist"
+
+
+def test_analytics_aggregates_only_phase2_mitigation_records(replay_context):
+    client, fake_database, _ = replay_context
+    phase1_record = {
+        "experiment_id": "EXP000",
+        "chain_id": "CHAIN-PHASE1",
+        "status": "validated",
+        "validated_steps": 1,
+        "total_steps": 1,
+        "steps": [],
+        "timestamp": "2026-10-01T11:00:00+00:00",
+    }
+    fake_database.evaluation_results.insert_one(phase1_record)
+
+    replay_response = client.post(
+        "/experiments/EXP001/mitigation/replay",
+        json=replay_payload(),
+    )
+    assert replay_response.status_code == 200
+
+    response = client.get("/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_evaluation_results"] == 2
+    assert "mitigation_metrics" in body
+    adaptive_metrics = body["mitigation_metrics"]["adaptive"]
+    assert adaptive_metrics["mitigation_selections"] == 1
+    assert adaptive_metrics["successful_mitigation_applications"] == 1
+    assert adaptive_metrics["disrupted_chains"] == 1
+    assert fake_database.evaluation_results.documents[0] == phase1_record
 
 
 def test_phase1_route_smoke_regression(replay_context):

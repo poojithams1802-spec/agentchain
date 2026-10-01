@@ -43,6 +43,10 @@ from mitigation_schemas import (
 from mitigation_selector import MitigationSelector
 from sandbox.mitigation.mitigation_executor import apply_mitigation
 from sandbox.mitigation.replay_executor import replay_attack
+from sandbox.evaluation.mitigation_evaluation import (
+    build_mitigation_experiment_record,
+)
+from sandbox.evaluation.research_metrics import calculate_research_metrics
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
 
@@ -337,6 +341,14 @@ def select_mitigation(
             detail="Mitigation selector failed",
         ) from error
 
+    selector_metrics = getattr(
+        selector,
+        "last_metrics",
+        {},
+    )
+    if not isinstance(selector_metrics, dict):
+        selector_metrics = {}
+
     try:
         selected_control = DefensiveControl(
             decision.selected_control
@@ -357,6 +369,12 @@ def select_mitigation(
             "priority": decision.priority,
             "retrieved_knowledge": list(
                 selector_input.retrieved_knowledge
+            ),
+            "llm_calls": int(
+                bool(selector_metrics.get("llm_called"))
+            ),
+            "fallback_used": bool(
+                selector_metrics.get("fallback_used", False)
             ),
         },
     )
@@ -557,8 +575,12 @@ def replay_mitigation_run(
         ) from error
 
     required_fields = {
+        "experiment_id",
+        "test",
+        "control",
         "before",
         "after",
+        "activation",
         "before_validation",
         "after_validation",
         "disrupted",
@@ -601,14 +623,45 @@ def replay_mitigation_run(
             detail="Mitigation replay returned an invalid result",
         ) from error
 
+    replayed_at = datetime.now(timezone.utc).isoformat()
+    research_record = build_mitigation_experiment_record(
+        {
+            "status": p4_result["status"],
+            "experiment_id": p4_result["experiment_id"],
+            "test": p4_result["test"],
+            "control": p4_result["control"],
+            "before": p4_result["before"],
+            "after": p4_result["after"],
+            "activation": p4_result["activation"],
+            "before_validation": p4_result["before_validation"],
+            "after_validation": p4_result["after_validation"],
+            "disrupted": p4_result["disrupted"],
+            "residual_vulnerable_steps": p4_result[
+                "residual_vulnerable_steps"
+            ],
+            "validation_result": p4_result["validation_result"],
+        },
+        mode=experiment["mode"],
+        mitigation_selected=None,
+        llm_calls=selection.get("llm_calls", 0),
+        fallback_used=selection.get("fallback_used", False),
+    )
+
     mitigation_repository.update_mitigation_run(
         payload.mitigation_run_id,
         status="completed",
         replay={
             **replay_result.model_dump(),
-            "replayed_at": datetime.now(timezone.utc).isoformat(),
+            "replayed_at": replayed_at,
         },
         disruption=disruption_result.model_dump(),
+    )
+    db.evaluation_results.insert_one(
+        {
+            "evaluation_type": "phase2_mitigation",
+            "timestamp": replayed_at,
+            **research_record,
+        }
     )
 
     return replay_result
@@ -1024,10 +1077,19 @@ def validate_chain(
 
 @app.get("/analytics")
 def get_analytics():
+    mitigation_records = list(
+        db.evaluation_results.find(
+            {"evaluation_type": "phase2_mitigation"},
+            {"_id": 0},
+        )
+    )
 
     return {
         "total_experiments": db.experiments.count_documents({}),
         "total_findings": db.findings.count_documents({}),
         "total_chains": db.attack_chains.count_documents({}),
         "total_evaluation_results": db.evaluation_results.count_documents({}),
+        "mitigation_metrics": calculate_research_metrics(
+            {"experiments": mitigation_records}
+        ),
     }

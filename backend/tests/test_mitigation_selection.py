@@ -281,6 +281,8 @@ def test_selection_persistence(mitigation_context):
         "confidence": 0.92,
         "priority": 0.8,
         "retrieved_knowledge": ["deterministic retrieved knowledge"],
+        "llm_calls": 0,
+        "fallback_used": False,
     }
 
 

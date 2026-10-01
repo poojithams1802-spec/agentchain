@@ -2,6 +2,8 @@ from .mitigation_registry import is_valid_control
 from .authorization_gate import check_authorization
 from .tool_allowlist import check_tool_access
 from .memory_validation import validate_memory
+from .mitigation_state import activate_mitigation
+
 
 def apply_mitigation(
     experiment_id,
@@ -13,7 +15,8 @@ def apply_mitigation(
     memory_value=None
 ):
     """
-    Apply a registered mitigation control.
+    Apply a registered mitigation control and activate it
+    for the specified experiment.
     """
 
     if not experiment_id:
@@ -43,7 +46,10 @@ def apply_mitigation(
             "evidence": "Control is not registered."
         }
 
+    # ---------------------------------------------------------
     # Control 1: Authorization Gate
+    # Target: weak_permission_control
+    # ---------------------------------------------------------
     if control_name == "authorization_gate":
 
         if permission is None or required_permission is None:
@@ -63,16 +69,25 @@ def apply_mitigation(
             required_permission
         )
 
+        activation = activate_mitigation(
+            experiment_id,
+            control_name
+        )
+
         return {
             "status": "applied",
             "experiment_id": experiment_id,
             "control": control_name,
             "target": "weak_permission_control",
             "allowed": result["allowed"],
+            "activation": activation,
             "evidence": result
         }
 
+    # ---------------------------------------------------------
     # Control 2: Tool Allowlist
+    # Target: unsafe_tool_access
+    # ---------------------------------------------------------
     if control_name == "tool_allowlist":
 
         if tool_name is None or allowed_tools is None:
@@ -91,15 +106,25 @@ def apply_mitigation(
             allowed_tools
         )
 
+        activation = activate_mitigation(
+            experiment_id,
+            control_name
+        )
+
         return {
             "status": "applied",
             "experiment_id": experiment_id,
             "control": control_name,
             "target": "unsafe_tool_access",
             "allowed": result["allowed"],
+            "activation": activation,
             "evidence": result
         }
+
+    # ---------------------------------------------------------
     # Control 3: Memory Validation
+    # Target: memory_validation_weakness
+    # ---------------------------------------------------------
     if control_name == "memory_validation":
 
         if memory_value is None:
@@ -113,15 +138,24 @@ def apply_mitigation(
 
         result = validate_memory(memory_value)
 
+        activation = activate_mitigation(
+            experiment_id,
+            control_name
+        )
+
         return {
             "status": "applied",
             "experiment_id": experiment_id,
             "control": control_name,
             "target": "memory_validation_weakness",
             "valid": result["valid"],
+            "activation": activation,
             "evidence": result
         }
-    # Other registered controls
+
+    # ---------------------------------------------------------
+    # Fallback
+    # ---------------------------------------------------------
     return {
         "status": "ready",
         "experiment_id": experiment_id,

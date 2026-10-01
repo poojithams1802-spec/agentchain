@@ -1,7 +1,6 @@
 import unittest
 
-from validator.chain_validator import ChainValidator
-
+from .chain_validator import ChainValidator
 
 class TestChainValidator(unittest.TestCase):
 

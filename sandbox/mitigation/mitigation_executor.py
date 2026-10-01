@@ -5,6 +5,22 @@ from .memory_validation import validate_memory
 from .mitigation_state import activate_mitigation
 
 
+CONTROL_TARGETS = {
+    "authorization_gate": {
+        "target": "weak_permission_control",
+        "test": "permission_test"
+    },
+    "tool_allowlist": {
+        "target": "unsafe_tool_access",
+        "test": "tool_access_test"
+    },
+    "memory_validation": {
+        "target": "memory_validation_weakness",
+        "test": "memory_access_test"
+    }
+}
+
+
 def apply_mitigation(
     experiment_id,
     control_name,
@@ -15,9 +31,19 @@ def apply_mitigation(
     memory_value=None
 ):
     """
-    Apply a registered mitigation control and activate it
-    for the specified experiment.
+    Apply a predefined mitigation.
+
+    Primary interface used by the backend/P2:
+
+        apply_mitigation(experiment_id, control_name)
+
+    Optional control-specific arguments are supported for
+    backward-compatible validation tests.
     """
+
+    # ---------------------------------------------------------
+    # Validate experiment ID
+    # ---------------------------------------------------------
 
     if not experiment_id:
         return {
@@ -28,6 +54,10 @@ def apply_mitigation(
             "evidence": "experiment_id is required."
         }
 
+    # ---------------------------------------------------------
+    # Validate control name
+    # ---------------------------------------------------------
+
     if not control_name:
         return {
             "status": "failed",
@@ -36,6 +66,10 @@ def apply_mitigation(
             "target": None,
             "evidence": "control_name is required."
         }
+
+    # ---------------------------------------------------------
+    # Validate registered control
+    # ---------------------------------------------------------
 
     if not is_valid_control(control_name):
         return {
@@ -46,16 +80,235 @@ def apply_mitigation(
             "evidence": "Control is not registered."
         }
 
+    mapping = CONTROL_TARGETS[control_name]
+
     # ---------------------------------------------------------
-    # Control 1: Authorization Gate
-    # Target: weak_permission_control
+    # Detect whether control-specific validation data
+    # was supplied.
     # ---------------------------------------------------------
-    if control_name == "authorization_gate":
+
+    validation_requested = any([
+        permission is not None,
+        required_permission is not None,
+        tool_name is not None,
+        allowed_tools is not None,
+        memory_value is not None
+    ])
+
+    # =========================================================
+    # AUTHORIZATION GATE
+    # =========================================================
+
+    if control_name == "authorization_gate" and validation_requested:
 
         if permission is None or required_permission is None:
             return {
                 "status": "failed",
                 "experiment_id": experiment_id,
+                "control": control_name,
+                "target": mapping["target"],
+                "evidence": (
+                    "permission and required_permission "
+                    "are required for authorization_gate."
+                )
+            }
+
+        validation = check_authorization(
+            permission,
+            required_permission
+        )
+
+        activation = activate_mitigation(
+            experiment_id,
+            control_name
+        )
+
+        if activation["status"] != "activated":
+            return {
+                "status": "failed",
+                "experiment_id": experiment_id,
+                "control": control_name,
+                "target": mapping["target"],
+                "test": mapping["test"],
+                "evidence": "Mitigation activation failed."
+            }
+
+        return {
+            "status": "applied",
+            "experiment_id": experiment_id,
+            "control": control_name,
+            "target": mapping["target"],
+            "test": mapping["test"],
+            "allowed": validation["allowed"],
+            "activation": activation,
+            "evidence": validation
+        }
+
+    # =========================================================
+    # TOOL ALLOWLIST
+    # =========================================================
+
+    if control_name == "tool_allowlist" and validation_requested:
+
+        if tool_name is None or allowed_tools is None:
+            return {
+                "status": "failed",
+                "experiment_id": experiment_id,
+                "control": control_name,
+                "target": mapping["target"],
+                "evidence": (
+                    "tool_name and allowed_tools "
+                    "are required for tool_allowlist."
+                )
+            }
+
+        validation = check_tool_access(
+            tool_name,
+            allowed_tools
+        )
+
+        activation = activate_mitigation(
+            experiment_id,
+            control_name
+        )
+
+        if activation["status"] != "activated":
+            return {
+                "status": "failed",
+                "experiment_id": experiment_id,
+                "control": control_name,
+                "target": mapping["target"],
+                "test": mapping["test"],
+                "evidence": "Mitigation activation failed."
+            }
+
+        return {
+            "status": "applied",
+            "experiment_id": experiment_id,
+            "control": control_name,
+            "target": mapping["target"],
+            "test": mapping["test"],
+            "allowed": validation["allowed"],
+            "activation": activation,
+            "evidence": validation
+        }
+
+    # =========================================================
+    # MEMORY VALIDATION
+    # =========================================================
+
+    if control_name == "memory_validation" and validation_requested:
+
+        if memory_value is None:
+            return {
+                "status": "failed",
+                "experiment_id": experiment_id,
+                "control": control_name,
+                "target": mapping["target"],
+                "evidence": (
+                    "memory_value is required "
+                    "for memory_validation."
+                )
+            }
+
+        validation = validate_memory(
+            memory_value
+        )
+
+        activation = activate_mitigation(
+            experiment_id,
+            control_name
+        )
+
+        if activation["status"] != "activated":
+            return {
+                "status": "failed",
+                "experiment_id": experiment_id,
+                "control": control_name,
+                "target": mapping["target"],
+                "test": mapping["test"],
+                "evidence": "Mitigation activation failed."
+            }
+
+        return {
+            "status": "applied",
+            "experiment_id": experiment_id,
+            "control": control_name,
+            "target": mapping["target"],
+            "test": mapping["test"],
+            "valid": validation["valid"],
+            "activation": activation,
+            "evidence": validation
+        }
+
+    # =========================================================
+    # PRIMARY TWO-ARGUMENT INTERFACE
+    #
+    # This is the interface Person 2 will use:
+    #
+    # apply_mitigation(experiment_id, control_name)
+    # =========================================================
+
+    activation = activate_mitigation(
+        experiment_id,
+        control_name
+    )
+
+    if activation["status"] != "activated":
+        return {
+            "status": "failed",
+            "experiment_id": experiment_id,
+            "control": control_name,
+            "target": mapping["target"],
+            "test": mapping["test"],
+            "activation": activation,
+            "evidence": "Mitigation activation failed."
+        }
+
+    return {
+        "status": "applied",
+        "experiment_id": experiment_id,
+        "control": control_name,
+        "target": mapping["target"],
+        "test": mapping["test"],
+        "activation": activation,
+        "evidence": (
+            "Predefined mitigation activated for the experiment."
+        )
+    }
+
+
+def validate_mitigation_control(
+    control_name,
+    permission=None,
+    required_permission=None,
+    tool_name=None,
+    allowed_tools=None,
+    memory_value=None
+):
+    """
+    Optional direct validation helper.
+
+    This function validates the actual defensive control
+    without activating experiment mitigation state.
+    """
+
+    if not is_valid_control(control_name):
+        return {
+            "status": "failed",
+            "control": control_name,
+            "evidence": "Control is not registered."
+        }
+
+    # ---------------------------------------------------------
+    # Authorization Gate
+    # ---------------------------------------------------------
+
+    if control_name == "authorization_gate":
+
+        if permission is None or required_permission is None:
+            return {
+                "status": "failed",
                 "control": control_name,
                 "target": "weak_permission_control",
                 "evidence": (
@@ -69,35 +322,28 @@ def apply_mitigation(
             required_permission
         )
 
-        activation = activate_mitigation(
-            experiment_id,
-            control_name
-        )
-
         return {
-            "status": "applied",
-            "experiment_id": experiment_id,
+            "status": "validated",
             "control": control_name,
             "target": "weak_permission_control",
             "allowed": result["allowed"],
-            "activation": activation,
             "evidence": result
         }
 
     # ---------------------------------------------------------
-    # Control 2: Tool Allowlist
-    # Target: unsafe_tool_access
+    # Tool Allowlist
     # ---------------------------------------------------------
+
     if control_name == "tool_allowlist":
 
         if tool_name is None or allowed_tools is None:
             return {
                 "status": "failed",
-                "experiment_id": experiment_id,
                 "control": control_name,
                 "target": "unsafe_tool_access",
                 "evidence": (
-                    "tool_name and allowed_tools are required."
+                    "tool_name and allowed_tools "
+                    "are required."
                 )
             }
 
@@ -106,60 +352,42 @@ def apply_mitigation(
             allowed_tools
         )
 
-        activation = activate_mitigation(
-            experiment_id,
-            control_name
-        )
-
         return {
-            "status": "applied",
-            "experiment_id": experiment_id,
+            "status": "validated",
             "control": control_name,
             "target": "unsafe_tool_access",
             "allowed": result["allowed"],
-            "activation": activation,
             "evidence": result
         }
 
     # ---------------------------------------------------------
-    # Control 3: Memory Validation
-    # Target: memory_validation_weakness
+    # Memory Validation
     # ---------------------------------------------------------
+
     if control_name == "memory_validation":
 
         if memory_value is None:
             return {
                 "status": "failed",
-                "experiment_id": experiment_id,
                 "control": control_name,
                 "target": "memory_validation_weakness",
                 "evidence": "memory_value is required."
             }
 
-        result = validate_memory(memory_value)
-
-        activation = activate_mitigation(
-            experiment_id,
-            control_name
+        result = validate_memory(
+            memory_value
         )
 
         return {
-            "status": "applied",
-            "experiment_id": experiment_id,
+            "status": "validated",
             "control": control_name,
             "target": "memory_validation_weakness",
             "valid": result["valid"],
-            "activation": activation,
             "evidence": result
         }
 
-    # ---------------------------------------------------------
-    # Fallback
-    # ---------------------------------------------------------
     return {
-        "status": "ready",
-        "experiment_id": experiment_id,
+        "status": "failed",
         "control": control_name,
-        "target": None,
-        "evidence": "Control is registered but implementation is pending."
+        "evidence": "Unsupported control."
     }

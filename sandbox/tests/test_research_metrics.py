@@ -124,7 +124,111 @@ class TestResearchMetrics(unittest.TestCase):
             metrics["adaptive"]["llm_calls"],
             0
         )
+        def test_phase2_mitigation_metrics(self):
 
+            dataset = {
+                "experiments": [
+                    {
+                        "experiment_id": "EXP-P2-001",
+                        "mode": "adaptive",
+                        "executed_tests": [
+                            "permission_test"
+                        ],
+                        "findings": [
+                            "weak_permission_control"
+                        ],
+                        "candidate_chains": [
+                            "CHAIN-001"
+                        ],
+                        "validated_chains": [
+                            "CHAIN-001"
+                        ],
+                        "average_chain_length": 1.0,
+                        "validation_rate": 1.0,
+                        "execution_count": 1,
+                        "llm_calls": 1,
+
+                        "mitigation_control":
+                            "authorization_gate",
+                        "mitigation_selected": True,
+                        "mitigation_applied": True,
+                        "attack_success_before": True,
+                        "attack_success_after": False,
+                        "chain_disrupted": True,
+                        "residual_vulnerable_steps": [],
+                        "mitigation_validation": True
+                    }
+                ]
+            }
+
+            metrics = calculate_research_metrics(dataset)
+
+            adaptive = metrics["adaptive"]
+
+            self.assertEqual(
+                adaptive["mitigation_selections"],
+                1
+            )
+
+            self.assertEqual(
+                adaptive["successful_mitigation_applications"],
+                1
+            )
+
+            self.assertEqual(
+                adaptive["attack_success_before"],
+                1
+            )
+
+            self.assertEqual(
+                adaptive["attack_success_after"],
+                0
+            )
+
+            self.assertEqual(
+                adaptive["disrupted_chains"],
+                1
+            )
+
+            self.assertEqual(
+                adaptive["mitigation_validations"],
+                1
+            )
+
+            self.assertEqual(
+                adaptive["residual_vulnerable_steps"],
+                0
+            )
+
+            self.assertEqual(
+                adaptive["mitigation_selection_accuracy"],
+                1.0
+            )
+
+            self.assertEqual(
+                adaptive["mitigation_application_success"],
+                1.0
+            )
+
+            self.assertEqual(
+                adaptive["attack_success_rate_before"],
+                1.0
+            )
+
+            self.assertEqual(
+                adaptive["attack_success_rate_after"],
+                0.0
+            )
+
+            self.assertEqual(
+                adaptive["chain_disruption_rate"],
+                1.0
+            )
+
+            self.assertEqual(
+                adaptive["mitigation_validation_rate"],
+                1.0
+            )
 
 if __name__ == "__main__":
     unittest.main()

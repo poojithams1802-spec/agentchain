@@ -46,9 +46,11 @@ from sandbox.mitigation.replay_executor import replay_attack
 from sandbox.evaluation.mitigation_evaluation import (
     build_mitigation_experiment_record,
 )
+from sandbox.evaluation.phase2_runner import run_all_phase2_experiments
 from sandbox.evaluation.research_metrics import calculate_research_metrics
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
+from app.phase2_persistence import persist_phase2_condition_records
 
 
 app = FastAPI()
@@ -1109,4 +1111,29 @@ def get_phase2_analytics():
             {"experiments": mitigation_records}
         ),
         "records": mitigation_records,
+    }
+
+
+@app.post("/phase2/evaluation/run")
+def run_phase2_evaluation():
+    try:
+        records = run_all_phase2_experiments()
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Phase 2 evaluation run failed",
+        ) from error
+
+    try:
+        persisted_count = persist_phase2_condition_records(records)
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Phase 2 evaluation persistence failed",
+        ) from error
+
+    return {
+        "status": "completed",
+        "records_generated": len(records),
+        "records_persisted": persisted_count,
     }

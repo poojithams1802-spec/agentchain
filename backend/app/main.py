@@ -1093,3 +1093,20 @@ def get_analytics():
             {"experiments": mitigation_records}
         ),
     }
+
+
+@app.get("/phase2/analytics")
+def get_phase2_analytics():
+    mitigation_records = list(
+        db.evaluation_results.find(
+            {"evaluation_type": "phase2_mitigation"},
+            {"_id": 0},
+        )
+    )
+
+    return {
+        "metrics": calculate_research_metrics(
+            {"experiments": mitigation_records}
+        ),
+        "records": mitigation_records,
+    }

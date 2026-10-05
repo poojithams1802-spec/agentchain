@@ -456,6 +456,59 @@ def test_analytics_aggregates_only_phase2_mitigation_records(replay_context):
     assert fake_database.evaluation_results.documents[0] == phase1_record
 
 
+def test_phase2_analytics_returns_metrics_and_only_phase2_records(
+    replay_context,
+):
+    client, fake_database, _ = replay_context
+    phase1_record = {
+        "experiment_id": "EXP000",
+        "chain_id": "CHAIN-PHASE1",
+        "status": "validated",
+        "validated_steps": 1,
+        "total_steps": 1,
+        "steps": [],
+        "timestamp": "2026-10-01T11:00:00+00:00",
+    }
+    phase2_record = {
+        "evaluation_type": "phase2_mitigation",
+        "experiment_id": "EXP001",
+        "mode": "adaptive",
+        "mitigation_control": "tool_allowlist",
+        "mitigation_selected": True,
+        "mitigation_applied": True,
+        "attack_success_before": True,
+        "attack_success_after": False,
+        "chain_disrupted": True,
+        "residual_vulnerable_steps": [],
+    }
+    fake_database.evaluation_results.insert_one(phase1_record)
+    fake_database.evaluation_results.insert_one(phase2_record)
+
+    response = client.get("/phase2/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "metrics" in body
+    assert body["metrics"]["adaptive"]["mitigation_selections"] == 1
+    assert "records" in body
+    assert body["records"] == [phase2_record]
+
+
+def test_phase2_analytics_without_records_returns_empty_list_and_default_metrics(
+    replay_context,
+):
+    client, _, _ = replay_context
+
+    response = client.get("/phase2/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["records"] == []
+    assert body["metrics"] == main.calculate_research_metrics(
+        {"experiments": []}
+    )
+
+
 def test_phase1_route_smoke_regression(replay_context):
     client, _, _ = replay_context
 

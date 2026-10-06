@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from ..test_runner import run_test
 from ..mitigation.mitigation_state import is_mitigation_active
 
@@ -28,6 +30,9 @@ def execute_sandbox_test(experiment_id, test_name):
     If the corresponding mitigation is active for the
     experiment, the vulnerable result is converted into
     a blocked/validated result.
+
+    Phase 3:
+    Execution-cost metadata is recorded for each test execution.
     """
 
     if not experiment_id:
@@ -48,23 +53,50 @@ def execute_sandbox_test(experiment_id, test_name):
             "evidence": f"Unknown test: {test_name}",
         }
 
-    # Run the original deterministic vulnerability scenario.
+    # ---------------------------------------------------------
+    # Run the original deterministic vulnerability scenario
+    # while recording execution-cost metadata.
+    # ---------------------------------------------------------
+
+    start_time = perf_counter()
+
     result = run_test(test_name)
 
+    execution_time_seconds = perf_counter() - start_time
+
+    execution_cost = {
+        "test_count": 1,
+        "execution_time_seconds": execution_time_seconds,
+    }
+
+    # Copy the result before attaching Phase 3 metadata.
+    result = dict(result)
+    result["execution_cost"] = execution_cost
+
+    # ---------------------------------------------------------
     # Find the defensive control associated with this test.
+    # ---------------------------------------------------------
+
     mitigation_control = TEST_MITIGATION_MAP.get(test_name)
 
+    # ---------------------------------------------------------
     # Check whether that control is active for this experiment.
+    # ---------------------------------------------------------
+
     mitigation_active = (
         mitigation_control is not None
         and is_mitigation_active(
             experiment_id,
-            mitigation_control
+            mitigation_control,
         )
     )
 
+    # ---------------------------------------------------------
     # No mitigation is active.
-    # Return the original Phase 1 result unchanged.
+    # Return the original Phase 1 result plus Phase 3
+    # execution-cost metadata.
+    # ---------------------------------------------------------
+
     if not mitigation_active:
         return result
 
@@ -82,9 +114,12 @@ def execute_sandbox_test(experiment_id, test_name):
             "original": result["evidence"],
             "mitigation": mitigation_control,
             "mitigation_status": "active",
-            "result": "attack_blocked"
+            "result": "attack_blocked",
         },
         "confidence": 1.0,
         "mitigation_applied": True,
         "mitigation_control": mitigation_control,
+
+        # Phase 3 execution-cost metadata
+        "execution_cost": result["execution_cost"],
     }

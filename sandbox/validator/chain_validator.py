@@ -84,7 +84,7 @@ class ChainValidator:
                 "validated_steps": 0,
                 "total_steps": 0,
                 "steps": [],
-                "error": "chain_id is required."
+                "error": "chain_id is required.",
             }
 
         # ---------------------------------------------------------
@@ -98,7 +98,7 @@ class ChainValidator:
                 "validated_steps": 0,
                 "total_steps": 0,
                 "steps": [],
-                "error": "tests must be a list."
+                "error": "tests must be a list.",
             }
 
         # ---------------------------------------------------------
@@ -112,7 +112,7 @@ class ChainValidator:
                 "validated_steps": 0,
                 "total_steps": 0,
                 "steps": [],
-                "error": "Attack chain must contain at least one test."
+                "error": "Attack chain must contain at least one test.",
             }
 
         # ---------------------------------------------------------
@@ -129,7 +129,7 @@ class ChainValidator:
                 "validated_steps": 0,
                 "total_steps": len(tests),
                 "steps": [],
-                "error": "Every chain step must contain a valid test name."
+                "error": "Every chain step must contain a valid test name.",
             }
 
         # ---------------------------------------------------------
@@ -184,7 +184,8 @@ class ChainValidator:
                     "evidence_exists": False,
                     "dependency_valid": False,
                     "dependency_error": dependency_error,
-                    "valid": False
+                    "valid": False,
+                    "execution_cost": None,
                 })
 
                 continue
@@ -195,7 +196,7 @@ class ChainValidator:
 
             result = execute_sandbox_test(
                 self.experiment_id,
-                test_name
+                test_name,
             )
 
             expected_finding = EXPECTED_FINDINGS.get(test_name)
@@ -246,7 +247,8 @@ class ChainValidator:
                 "evidence_exists": evidence_exists,
                 "dependency_valid": dependency_valid,
                 "dependency_error": None,
-                "valid": step_valid
+                "valid": step_valid,
+                "execution_cost": result.get("execution_cost"),
             })
 
             # -----------------------------------------------------
@@ -273,9 +275,9 @@ class ChainValidator:
         # ---------------------------------------------------------
 
         validated_steps = sum(
-        step["valid"]
-        for step in step_results
-    )
+            step["valid"]
+            for step in step_results
+        )
 
         total_steps = len(step_results)
 
@@ -283,12 +285,12 @@ class ChainValidator:
             validated_steps / total_steps
             if total_steps > 0
             else 0.0
-    )
+        )
 
         all_findings_reproduced = (
             total_steps > 0
             and validated_steps == total_steps
-    )
+        )
 
         return {
             "chain_id": chain_id,
@@ -298,5 +300,5 @@ class ChainValidator:
             "chain_length": total_steps,
             "validation_rate": validation_rate,
             "all_findings_reproduced": all_findings_reproduced,
-            "steps": step_results
+            "steps": step_results,
         }

@@ -7,6 +7,7 @@ The executor is intentionally thin:
 - delegates actual execution/validation to ChainValidator
 - enriches the result with chain metadata
 - converts an already-produced chain result into a research result
+- aggregates execution-cost metadata
 
 It does not duplicate sandbox or validation logic.
 """
@@ -76,6 +77,38 @@ def execute_chain(experiment_id, chain_id):
         chain["steps"],
     )
 
+    # ---------------------------------------------------------
+    # Aggregate Phase 3 execution-cost metadata.
+    # ---------------------------------------------------------
+
+    step_results = validation_result["steps"]
+
+    total_test_count = sum(
+        step.get("execution_cost", {}).get("test_count", 0)
+        for step in step_results
+        if isinstance(
+            step.get("execution_cost"),
+            dict,
+        )
+    )
+
+    total_execution_time_seconds = sum(
+        step.get("execution_cost", {}).get(
+            "execution_time_seconds",
+            0.0,
+        )
+        for step in step_results
+        if isinstance(
+            step.get("execution_cost"),
+            dict,
+        )
+    )
+
+    execution_cost = {
+        "test_count": total_test_count,
+        "execution_time_seconds": total_execution_time_seconds,
+    }
+
     return {
         "status": validation_result["status"],
         "experiment_id": experiment_id,
@@ -90,6 +123,7 @@ def execute_chain(experiment_id, chain_id):
         "all_findings_reproduced": validation_result[
             "all_findings_reproduced"
         ],
+        "execution_cost": execution_cost,
         "error": validation_result.get("error"),
     }
 

@@ -1,3 +1,4 @@
+import copy
 import json
 from typing import Any
 
@@ -56,6 +57,8 @@ class AdaptivePlanner:
                 "authorize",
                 "least privilege",
                 "access control",
+                "privilege propagation",
+                "chain authorization",
             ],
             "tool_access_test": [
                 "tool",
@@ -63,12 +66,17 @@ class AdaptivePlanner:
                 "tool access",
                 "sensitive tool",
                 "authorization",
+                "tool allowlist",
+                "tool delegation",
+                "unsafe delegation",
             ],
             "memory_access_test": [
                 "memory",
                 "memory validation",
                 "trusted instructions",
                 "untrusted information",
+                "memory sharing",
+                "cross-agent leakage",
             ],
         }
 
@@ -363,15 +371,6 @@ class AdaptivePlanner:
             {}
         )
 
-        residual_steps = residual_context.get(
-            "residual_steps",
-            []
-        )
-
-        next_residual_step = residual_context.get(
-            "next_residual_step"
-        )
-
         for test_name in eligible_tests:
             test_text = test_name.lower()
 
@@ -420,38 +419,6 @@ class AdaptivePlanner:
                             relevance,
                             0.95,
                         )
-
-            # -------------------------------------------------
-            # Residual-chain relevance
-            # -------------------------------------------------
-
-            residual_text = " ".join(
-                str(step)
-                for step in residual_steps
-            ).lower()
-
-            if (
-                test_text.replace("_", " ")
-                in residual_text
-            ):
-                relevance = max(
-                    relevance,
-                    0.95,
-                )
-
-            if next_residual_step:
-                next_step_text = str(
-                    next_residual_step
-                ).lower()
-
-                if (
-                    test_text.replace("_", " ")
-                    in next_step_text
-                ):
-                    relevance = max(
-                        relevance,
-                        1.0,
-                    )
 
             # -------------------------------------------------
             # Finding-based relevance
@@ -527,30 +494,6 @@ class AdaptivePlanner:
             # -------------------------------------------------
 
             information_gain = 0.75
-
-            # -------------------------------------------------
-            # Residual-chain information gain
-            # -------------------------------------------------
-
-            if residual_steps:
-                information_gain = max(
-                    information_gain,
-                    0.90,
-                )
-
-            if next_residual_step:
-                next_step_text = str(
-                    next_residual_step
-                ).lower()
-
-                if (
-                    test_text.replace("_", " ")
-                    in next_step_text
-                ):
-                    information_gain = max(
-                        information_gain,
-                        1.0,
-                    )
 
             # -------------------------------------------------
             # Chain validation-aware information gain
@@ -670,6 +613,294 @@ class AdaptivePlanner:
             for candidate, score in ranked_candidates
         ]
 
+    def calculate_budget_pressure(
+        self,
+        planner_input: PlannerInput,
+    ) -> float:
+        """
+        Calculate normalized pressure from the remaining testing budget.
+
+        The value is between 0.0 and 1.0. A higher value means fewer
+        resources remain and candidate testing cost should matter more.
+        """
+
+        budget = planner_input.testing_budget
+        used = planner_input.budget_used
+
+        pressures = []
+
+        if budget.max_tests > 0:
+            pressures.append(
+                used.tests / budget.max_tests
+            )
+
+        if budget.max_llm_calls > 0:
+            pressures.append(
+                used.llm_calls / budget.max_llm_calls
+            )
+
+        if budget.max_time_seconds > 0:
+            pressures.append(
+                used.time_seconds / budget.max_time_seconds
+            )
+
+        if not pressures:
+            return 1.0
+
+        return min(
+            max(pressures),
+            1.0,
+        )
+
+    def calculate_budget_adjusted_score(
+        self,
+        planner_input: PlannerInput,
+        candidate: CandidateMetadata,
+        base_score: float,
+    ) -> float:
+        """
+        Adjust a candidate score according to remaining budget.
+
+        Under normal budget conditions the original Phase 2/3 score is
+        preserved. As the budget becomes constrained, higher-cost tests
+        receive a deterministic penalty so the planner favors useful
+        evidence that consumes fewer testing resources.
+        """
+
+        pressure = self.calculate_budget_pressure(
+            planner_input
+        )
+
+        if pressure <= 0.5:
+            return round(base_score, 4)
+
+        # Cost penalty grows from zero at 50% usage to the full
+        # configured cost weight when the budget is exhausted.
+        constrained_pressure = (
+            pressure - 0.5
+        ) / 0.5
+
+        cost_penalty = (
+            candidate.testing_cost
+            * 0.20
+            * constrained_pressure
+        )
+
+        return round(
+            max(0.0, base_score - cost_penalty),
+            4,
+        )
+
+    def rank_candidates_with_budget(
+        self,
+        planner_input: PlannerInput,
+    ) -> list[tuple[CandidateMetadata, float]]:
+        """
+        Rank candidates using deterministic candidate scoring plus
+        remaining-budget pressure.
+        """
+
+        ranked_candidates = self.rank_candidates(
+            planner_input
+        )
+
+        adjusted = [
+            (
+                candidate,
+                self.calculate_budget_adjusted_score(
+                    planner_input,
+                    candidate,
+                    score,
+                ),
+            )
+            for candidate, score in ranked_candidates
+        ]
+
+        return sorted(
+            adjusted,
+            key=lambda item: (
+                -item[1],
+                item[0].testing_cost,
+                item[0].test_name,
+            ),
+        )
+
+    def normalize_experiment_mode(
+        self,
+        mode: str,
+    ) -> str:
+        """
+        Normalize the planner experiment mode.
+
+        Phase 3 Day 7 compares a deterministic static baseline
+        against the adaptive planner. This method keeps the
+        experiment modes explicit and bounded.
+        """
+
+        normalized = str(mode).strip().lower()
+
+        if normalized not in {
+            "static",
+            "adaptive",
+        }:
+            raise ValueError(
+                "Experiment mode must be 'static' or 'adaptive'."
+            )
+
+        return normalized
+
+    def static_decision(
+        self,
+        planner_input: PlannerInput,
+    ) -> PlannerDecision:
+        """
+        Select the next test using a deterministic static baseline.
+
+        The static baseline follows the first eligible test in the
+        supplied available_tests order and does not use the LLM or
+        adaptive budget-aware ranking.
+        """
+
+        previous_tests = set(
+            planner_input.previous_tests
+        )
+
+        candidates = self.build_candidates(
+            planner_input
+        )
+
+        if not candidates:
+            raise ValueError(
+                "No eligible sandbox tests are available."
+            )
+
+        for candidate in candidates:
+            if candidate.test_name not in previous_tests:
+                return PlannerDecision(
+                    selected_test=candidate.test_name,
+                    reason=(
+                        "Static baseline selected the first "
+                        "eligible test in available_tests order."
+                    ),
+                    priority=0.5,
+                    confidence=1.0,
+                )
+
+        raise ValueError(
+            "No unexecuted sandbox tests are available."
+        )
+
+    def run_experiment(
+        self,
+        planner_input: PlannerInput,
+        mode: str = "adaptive",
+        max_steps: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Run a planner-level static or adaptive experiment.
+
+        This runner compares planning decisions only. It does not
+        execute sandbox tests; sandbox execution and execution-cost
+        measurement remain owned by the controlled execution layer.
+
+        The supplied PlannerInput is copied so experiment state does
+        not mutate the caller's planner state.
+        """
+
+        experiment_mode = self.normalize_experiment_mode(
+            mode
+        )
+
+        state = copy.deepcopy(
+            planner_input
+        )
+
+        if max_steps is None:
+            max_steps = min(
+                state.testing_budget.max_tests,
+                len(state.available_tests),
+            )
+
+        if not isinstance(max_steps, int):
+            raise TypeError(
+                "max_steps must be an integer or None."
+            )
+
+        if max_steps < 0:
+            raise ValueError(
+                "max_steps must be greater than or equal to 0."
+            )
+
+        decisions: list[dict[str, Any]] = []
+        status = "completed"
+
+        for step_index in range(max_steps):
+            if self.budget_exhausted(state):
+                status = "budget_exhausted"
+                break
+
+            unexecuted_tests = [
+                test
+                for test in state.available_tests
+                if test not in state.previous_tests
+            ]
+
+            if not unexecuted_tests:
+                break
+
+            if experiment_mode == "static":
+                decision = self.static_decision(
+                    state
+                )
+            else:
+                decision = self.plan(
+                    state
+                )
+
+            state.previous_tests.append(
+                decision.selected_test
+            )
+
+            state.budget_used.tests += 1
+
+            decisions.append(
+                {
+                    "step": step_index + 1,
+                    "selected_test": decision.selected_test,
+                    "reason": decision.reason,
+                    "priority": decision.priority,
+                    "confidence": decision.confidence,
+                    "budget_used": state.budget_used.model_dump(),
+                    "remaining_budget": self.remaining_budget(
+                        state
+                    ),
+                }
+            )
+
+        if (
+            status == "completed"
+            and self.budget_exhausted(state)
+            and len(decisions) < max_steps
+        ):
+            status = "budget_exhausted"
+
+        return {
+            "mode": experiment_mode,
+            "status": status,
+            "runner_scope": "planner_only",
+            "tests_requested": max_steps,
+            "tests_selected": len(decisions),
+            "selected_tests": [
+                item["selected_test"]
+                for item in decisions
+            ],
+            "decisions": decisions,
+            "budget_used": state.budget_used.model_dump(),
+            "remaining_budget": self.remaining_budget(
+                state
+            ),
+        }
+
     def select_from_candidates(
         self,
         planner_input: PlannerInput,
@@ -684,7 +915,7 @@ class AdaptivePlanner:
         fall back to the highest-ranked unexecuted candidate.
         """
 
-        ranked_candidates = self.rank_candidates(
+        ranked_candidates = self.rank_candidates_with_budget(
             planner_input
         )
 
@@ -709,6 +940,87 @@ class AdaptivePlanner:
             ),
             priority=ranked_candidates[0][1],
             confidence=decision.confidence,
+        )
+
+    def get_phase3_rag_topics(
+        self,
+        planner_input: PlannerInput,
+    ) -> list[str]:
+        """
+        Build controlled Phase 3 security-knowledge topics for RAG.
+
+        These are query concepts, not fabricated retrieved evidence.
+        The hybrid retriever remains the source of retrieved knowledge.
+        """
+
+        topics = [
+            "adaptive security testing",
+            "testing budget",
+            "information gain",
+            "testing cost",
+        ]
+
+        chain_context = self.get_chain_context(
+            planner_input
+        )
+
+        if chain_context.get("ordered_steps"):
+            topics.extend(
+                [
+                    "multi-step attack chain",
+                    "attack-chain dependencies",
+                    "chain validation",
+                ]
+            )
+
+        residual_context = self.get_residual_chain_context(
+            planner_input
+        )
+
+        if residual_context.get("residual_steps"):
+            topics.extend(
+                [
+                    "residual attack chain",
+                    "residual vulnerable steps",
+                    "chain disruption",
+                ]
+            )
+
+        for finding in planner_input.findings:
+            finding_text = (
+                finding.finding + " " + finding.evidence
+            ).lower()
+
+            if "permission" in finding_text or "authorization" in finding_text:
+                topics.extend(
+                    [
+                        "authorization boundaries",
+                        "least privilege",
+                        "privilege propagation",
+                    ]
+                )
+
+            if "tool" in finding_text:
+                topics.extend(
+                    [
+                        "tool allowlist",
+                        "tool authorization",
+                        "unsafe tool delegation",
+                    ]
+                )
+
+            if "memory" in finding_text:
+                topics.extend(
+                    [
+                        "memory validation",
+                        "untrusted information",
+                        "memory sharing",
+                    ]
+                )
+
+        # Preserve order while removing duplicates.
+        return list(
+            dict.fromkeys(topics)
         )
 
     def build_query(
@@ -760,6 +1072,12 @@ class AdaptivePlanner:
             query_parts.append(
                 str(value)
             )
+
+        query_parts.extend(
+            self.get_phase3_rag_topics(
+                planner_input
+            )
+        )
 
         query = " ".join(
             part
@@ -822,6 +1140,11 @@ class AdaptivePlanner:
             "candidate_scores": candidate_context,
             "retrieved_knowledge": (
                 planner_input.retrieved_knowledge
+            ),
+            "rag_query_topics": (
+                self.get_phase3_rag_topics(
+                    planner_input
+                )
             ),
             "chain_state": (
                 planner_input.chain_state
@@ -889,6 +1212,25 @@ Consider the following information:
 - Least-privilege principles
 - Evidence requirements
 - Test dependencies
+- Phase 3 RAG query topics
+
+==================================================
+SECURITY KNOWLEDGE / RAG
+==================================================
+
+Use retrieved security knowledge as evidence-guided context.
+RAG query topics are retrieval hints only and are not themselves
+security findings or validated evidence.
+
+Relevant Phase 3 knowledge areas may include:
+- Multi-step attack chains
+- Chain dependencies and validation
+- Residual chain steps and disruption
+- Adaptive testing budgets
+- Information gain and testing cost
+- Authorization and least privilege
+- Tool authorization and allowlisting
+- Memory validation and untrusted information
 
 ==================================================
 CANDIDATE SCORING
@@ -934,6 +1276,10 @@ You must respect:
 Prefer candidates that provide high security value
 relative to their testing cost.
 
+When the remaining budget becomes constrained, favor
+candidates that preserve useful security evidence while
+consuming fewer testing resources.
+
 Never assume unlimited testing resources.
 
 
@@ -950,13 +1296,6 @@ When chain context is available:
   current or next relevant chain step.
 - Use the validation result to identify whether
   additional testing is useful.
-- Consider completed chain steps.
-- Consider residual chain steps.
-- If residual steps remain, prioritize evidence
-  about the next relevant residual step.
-- Treat residual steps as unresolved chain state,
-  not as confirmed vulnerabilities.
-- Do not invent residual steps.
 - Do not invent chain steps.
 - Do not execute or control the attack chain directly.
 - Chain execution and validation are handled by
@@ -1081,7 +1420,7 @@ Do not include additional explanation.
                 "No unexecuted sandbox tests are available."
             )
 
-        ranked_candidates = self.rank_candidates(
+        ranked_candidates = self.rank_candidates_with_budget(
             planner_input
         )
 

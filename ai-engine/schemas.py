@@ -12,6 +12,16 @@ class Finding(BaseModel):
     evidence: str = ""
 
 
+class TestingBudget(BaseModel):
+    max_tests: int = Field(default=5, ge=0)
+    max_llm_calls: int = Field(default=3, ge=0)
+    max_time_seconds: float = Field(default=30.0, ge=0.0)
+
+class BudgetUsed(BaseModel):
+    tests: int = Field(default=0, ge=0)
+    llm_calls: int = Field(default=0, ge=0)
+    time_seconds: float = Field(default=0.0, ge=0.0)
+
 class PlannerInput(BaseModel):
     findings: list[Finding] = Field(
         default_factory=list
@@ -31,6 +41,14 @@ class PlannerInput(BaseModel):
 
     chain_state: dict[str, Any] = Field(
         default_factory=dict
+    )
+
+    testing_budget: TestingBudget = Field(
+        default_factory=TestingBudget
+    )
+
+    budget_used: BudgetUsed = Field(
+        default_factory=BudgetUsed
     )
 
 

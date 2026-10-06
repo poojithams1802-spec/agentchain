@@ -100,14 +100,6 @@ export async function getMitigationResult(experimentId, mitigationRunId) {
 // Expected: GET /phase2/analytics -> { metrics, records } (see README_PHASE2_FRONTEND.md).
 // Falls back to a bundled snapshot if the endpoint does not exist yet.
 export async function getPhase2Analytics() {
-  try {
-    const { data } = await http.get('/analytics')
-    return { ...data, source: 'live' }
-  } catch (e) {
-    if (!e.response || e.response.status === 404) {
-      const snap = (await import('../mock/phase2.json')).default
-      return { ...snap, source: 'snapshot' }
-    }
-    throw e
-  }
+  const { data } = await http.get('/phase2/analytics')
+  return { ...data, source: 'live' }
 }

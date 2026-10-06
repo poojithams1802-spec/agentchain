@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from app.database import db
 from app.schemas import (
     BeforeAfterReplayResult,
+    ChainExecutionRequest,
+    ChainExecutionResponse,
     ChainDisruptionResult,
     ControlApplicationResult,
     DefensiveControl,
@@ -43,6 +45,7 @@ from mitigation_schemas import (
 from mitigation_selector import MitigationSelector
 from sandbox.mitigation.mitigation_executor import apply_mitigation
 from sandbox.mitigation.replay_executor import replay_attack
+from sandbox.chains.chain_executor import execute_chain
 from sandbox.evaluation.mitigation_evaluation import (
     build_mitigation_experiment_record,
 )
@@ -262,6 +265,48 @@ def get_experiment_chains(
     )
 
     return chains
+
+
+@app.post(
+    "/experiments/{experiment_id}/chains/execute",
+    response_model=ChainExecutionResponse,
+)
+def execute_experiment_chain(
+    experiment_id: str,
+    payload: ChainExecutionRequest,
+):
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    chain = db.attack_chains.find_one(
+        {
+            "chain_id": payload.chain_id,
+            "experiment_id": experiment_id,
+        }
+    )
+
+    if chain is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Chain not found",
+        )
+
+    result = execute_chain(experiment_id, payload.chain_id)
+
+    if result.get("status") == "invalid":
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("error") or "Chain execution failed",
+        )
+
+    return result
 
 
 @app.post("/experiments/{experiment_id}/mitigation/select")

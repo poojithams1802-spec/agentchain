@@ -10,6 +10,25 @@ class ExperimentCreate(BaseModel):
     max_tests: int = Field(..., gt=0)
 
 
+class ChainExecutionRequest(BaseModel):
+    chain_id: str = Field(..., min_length=1)
+
+
+class ChainExecutionResponse(BaseModel):
+    status: str
+    experiment_id: str
+    chain_id: str
+    name: str | None = None
+    description: str | None = None
+    steps: list[dict[str, Any]]
+    chain_length: int
+    validated_steps: int
+    total_steps: int
+    validation_rate: float
+    all_findings_reproduced: bool
+    error: str | None = None
+
+
 class DefensiveControl(str, Enum):
     authorization_gate = "authorization_gate"
     tool_allowlist = "tool_allowlist"

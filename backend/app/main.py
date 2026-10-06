@@ -45,7 +45,10 @@ from mitigation_schemas import (
 from mitigation_selector import MitigationSelector
 from sandbox.mitigation.mitigation_executor import apply_mitigation
 from sandbox.mitigation.replay_executor import replay_attack
-from sandbox.chains.chain_executor import execute_chain
+from sandbox.chains.chain_executor import (
+    execute_chain,
+    chain_result_to_research_result,
+)
 from sandbox.evaluation.mitigation_evaluation import (
     build_mitigation_experiment_record,
 )
@@ -55,6 +58,7 @@ from sandbox.evaluation.research_metrics import calculate_research_metrics
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
 from app.phase2_persistence import persist_phase2_condition_records
+from app.phase3_persistence import persist_phase3_chain_result
 
 
 app = FastAPI()
@@ -305,6 +309,14 @@ def execute_experiment_chain(
             status_code=400,
             detail=result.get("error") or "Chain execution failed",
         )
+
+    research_result = chain_result_to_research_result(
+        result,
+        mode=experiment.get("mode", "adaptive"),
+        llm_calls=0,
+        fallback_used=False,
+    )
+    persist_phase3_chain_result(research_result)
 
     return result
 

@@ -15,6 +15,7 @@ from app.schemas import (
     ExperimentCreate,
     MitigationApplyRequest,
     MitigationReplayRequest,
+    MitigationResultResponse,
     MitigationSelectionRequest,
 )
 import app.mitigation_repository as mitigation_repository
@@ -42,8 +43,15 @@ from mitigation_schemas import (
 from mitigation_selector import MitigationSelector
 from sandbox.mitigation.mitigation_executor import apply_mitigation
 from sandbox.mitigation.replay_executor import replay_attack
+from sandbox.evaluation.mitigation_evaluation import (
+    build_mitigation_experiment_record,
+)
+from sandbox.evaluation.phase2_runner import run_all_phase2_experiments
+from sandbox.evaluation.phase2_metrics import calculate_phase2_metrics
+from sandbox.evaluation.research_metrics import calculate_research_metrics
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
+from app.phase2_persistence import persist_phase2_condition_records
 
 
 app = FastAPI()
@@ -285,6 +293,12 @@ def select_mitigation(
             detail="Chain not found",
         )
 
+    if payload.attack_chain != chain.get("steps"):
+        raise HTTPException(
+            status_code=409,
+            detail="Attack chain does not match stored chain",
+        )
+
     mitigation_run = (
         mitigation_repository.create_mitigation_run(
             experiment_id=experiment_id,
@@ -330,6 +344,14 @@ def select_mitigation(
             detail="Mitigation selector failed",
         ) from error
 
+    selector_metrics = getattr(
+        selector,
+        "last_metrics",
+        {},
+    )
+    if not isinstance(selector_metrics, dict):
+        selector_metrics = {}
+
     try:
         selected_control = DefensiveControl(
             decision.selected_control
@@ -350,6 +372,12 @@ def select_mitigation(
             "priority": decision.priority,
             "retrieved_knowledge": list(
                 selector_input.retrieved_knowledge
+            ),
+            "llm_calls": int(
+                bool(selector_metrics.get("llm_called"))
+            ),
+            "fallback_used": bool(
+                selector_metrics.get("fallback_used", False)
             ),
         },
     )
@@ -550,8 +578,12 @@ def replay_mitigation_run(
         ) from error
 
     required_fields = {
+        "experiment_id",
+        "test",
+        "control",
         "before",
         "after",
+        "activation",
         "before_validation",
         "after_validation",
         "disrupted",
@@ -594,20 +626,54 @@ def replay_mitigation_run(
             detail="Mitigation replay returned an invalid result",
         ) from error
 
+    replayed_at = datetime.now(timezone.utc).isoformat()
+    research_record = build_mitigation_experiment_record(
+        {
+            "status": p4_result["status"],
+            "experiment_id": p4_result["experiment_id"],
+            "test": p4_result["test"],
+            "control": p4_result["control"],
+            "before": p4_result["before"],
+            "after": p4_result["after"],
+            "activation": p4_result["activation"],
+            "before_validation": p4_result["before_validation"],
+            "after_validation": p4_result["after_validation"],
+            "disrupted": p4_result["disrupted"],
+            "residual_vulnerable_steps": p4_result[
+                "residual_vulnerable_steps"
+            ],
+            "validation_result": p4_result["validation_result"],
+        },
+        mode=experiment["mode"],
+        mitigation_selected=None,
+        llm_calls=selection.get("llm_calls", 0),
+        fallback_used=selection.get("fallback_used", False),
+    )
+
     mitigation_repository.update_mitigation_run(
         payload.mitigation_run_id,
         status="completed",
         replay={
             **replay_result.model_dump(),
-            "replayed_at": datetime.now(timezone.utc).isoformat(),
+            "replayed_at": replayed_at,
         },
         disruption=disruption_result.model_dump(),
+    )
+    db.evaluation_results.insert_one(
+        {
+            "evaluation_type": "phase2_mitigation",
+            "timestamp": replayed_at,
+            **research_record,
+        }
     )
 
     return replay_result
 
 
-@app.get("/experiments/{experiment_id}/mitigation/result")
+@app.get(
+    "/experiments/{experiment_id}/mitigation/result",
+    response_model=MitigationResultResponse,
+)
 def get_mitigation_result(
     experiment_id: str,
     mitigation_run_id: str,
@@ -635,7 +701,28 @@ def get_mitigation_result(
             detail="Mitigation run not found",
         )
 
-    return mitigation_run
+    if mitigation_run.get("status") != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="Mitigation run is not completed",
+        )
+
+    selection = mitigation_run["selection"]
+    return MitigationResultResponse(
+        mitigation_run_id=mitigation_run["mitigation_run_id"],
+        experiment_id=mitigation_run["experiment_id"],
+        chain_id=mitigation_run["chain_id"],
+        status=mitigation_run["status"],
+        selection={
+            "mitigation_run_id": mitigation_run["mitigation_run_id"],
+            "selected_control": selection["selected_control"],
+            "reason": selection["reason"],
+            "confidence": selection["confidence"],
+        },
+        application=mitigation_run["application"],
+        replay=mitigation_run["replay"],
+        disruption=mitigation_run["disruption"],
+    )
 
 
 @app.post("/experiments/{experiment_id}/start")
@@ -993,10 +1080,62 @@ def validate_chain(
 
 @app.get("/analytics")
 def get_analytics():
+    mitigation_records = list(
+        db.evaluation_results.find(
+            {"evaluation_type": "phase2_mitigation"},
+            {"_id": 0},
+        )
+    )
 
     return {
         "total_experiments": db.experiments.count_documents({}),
         "total_findings": db.findings.count_documents({}),
         "total_chains": db.attack_chains.count_documents({}),
         "total_evaluation_results": db.evaluation_results.count_documents({}),
+        "mitigation_metrics": calculate_research_metrics(
+            {"experiments": mitigation_records}
+        ),
+    }
+
+
+@app.get("/phase2/analytics")
+def get_phase2_analytics():
+    records = list(
+        db.evaluation_results.find(
+            {
+                "evaluation_type": "phase2_condition",
+                "source": "phase2_condition_runner",
+            },
+            {"_id": 0},
+        )
+    )
+
+    return {
+        "metrics": calculate_phase2_metrics(records),
+        "records": records,
+    }
+
+
+@app.post("/phase2/evaluation/run")
+def run_phase2_evaluation():
+    try:
+        records = run_all_phase2_experiments()
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Phase 2 evaluation run failed",
+        ) from error
+
+    try:
+        persisted_count = persist_phase2_condition_records(records)
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Phase 2 evaluation persistence failed",
+        ) from error
+
+    return {
+        "status": "completed",
+        "records_generated": len(records),
+        "records_persisted": persisted_count,
     }

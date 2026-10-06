@@ -28,6 +28,8 @@ finally:
         else:
             sys.modules[name] = previous_module
 
+from app.schemas import MitigationResultResponse
+
 
 class FakeCollection:
     def __init__(self, documents=()):
@@ -45,6 +47,23 @@ class FakeCollection:
                 document.update(deepcopy(update.get("$set", {})))
                 return
 
+    def insert_one(self, document):
+        self.documents.append(deepcopy(document))
+
+    def find(self, query=None, projection=None):
+        query = query or {}
+        return [
+            deepcopy(document)
+            for document in self.documents
+            if all(document.get(key) == value for key, value in query.items())
+        ]
+
+    def count_documents(self, query):
+        return sum(
+            all(document.get(key) == value for key, value in query.items())
+            for document in self.documents
+        )
+
 
 class FakeDatabase:
     def __init__(self):
@@ -53,7 +72,7 @@ class FakeDatabase:
                 {
                     "experiment_id": "EXP001",
                     "name": "test experiment",
-                    "mode": "test",
+                    "mode": "adaptive",
                     "max_tests": 1,
                     "status": "created",
                 }
@@ -71,6 +90,9 @@ class FakeDatabase:
                 }
             ]
         )
+        self.findings = FakeCollection()
+        self.attack_chains = FakeCollection()
+        self.evaluation_results = FakeCollection()
 
 
 def complete_p4_result(
@@ -80,10 +102,12 @@ def complete_p4_result(
 ):
     result = {
         "status": "completed",
+        "experiment_id": "EXP001",
         "test": test,
         "control": control,
         "before": {"status": "completed", "finding": "unsafe_tool_access"},
         "after": {"status": "completed", "finding": None},
+        "activation": {"status": "applied", "control": control},
         "attack_disrupted": True,
         "before_validation": {"status": "validated"},
         "after_validation": {"status": "invalid"},
@@ -368,6 +392,137 @@ def test_replay_and_disruption_persistence(replay_context):
     }
 
 
+def test_successful_replay_persists_phase2_record_without_overwriting_phase1(
+    replay_context,
+):
+    client, fake_database, _ = replay_context
+    phase1_record = {
+        "experiment_id": "EXP000",
+        "chain_id": "CHAIN-PHASE1",
+        "status": "validated",
+        "validated_steps": 1,
+        "total_steps": 1,
+        "steps": [],
+        "timestamp": "2026-10-01T11:00:00+00:00",
+    }
+    fake_database.evaluation_results.insert_one(phase1_record)
+
+    response = client.post(
+        "/experiments/EXP001/mitigation/replay",
+        json=replay_payload(),
+    )
+
+    assert response.status_code == 200
+    assert fake_database.evaluation_results.documents[0] == phase1_record
+    phase2_records = fake_database.evaluation_results.find(
+        {"evaluation_type": "phase2_mitigation"}
+    )
+    assert len(phase2_records) == 1
+    assert phase2_records[0]["evaluation_type"] == "phase2_mitigation"
+    assert phase2_records[0]["experiment_id"] == "EXP001"
+    assert phase2_records[0]["timestamp"]
+    assert phase2_records[0]["mitigation_control"] == "tool_allowlist"
+
+
+def test_analytics_aggregates_only_phase2_mitigation_records(replay_context):
+    client, fake_database, _ = replay_context
+    phase1_record = {
+        "experiment_id": "EXP000",
+        "chain_id": "CHAIN-PHASE1",
+        "status": "validated",
+        "validated_steps": 1,
+        "total_steps": 1,
+        "steps": [],
+        "timestamp": "2026-10-01T11:00:00+00:00",
+    }
+    fake_database.evaluation_results.insert_one(phase1_record)
+
+    replay_response = client.post(
+        "/experiments/EXP001/mitigation/replay",
+        json=replay_payload(),
+    )
+    assert replay_response.status_code == 200
+
+    response = client.get("/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_evaluation_results"] == 2
+    assert "mitigation_metrics" in body
+    adaptive_metrics = body["mitigation_metrics"]["adaptive"]
+    assert adaptive_metrics["mitigation_selections"] == 1
+    assert adaptive_metrics["successful_mitigation_applications"] == 1
+    assert adaptive_metrics["disrupted_chains"] == 1
+    assert fake_database.evaluation_results.documents[0] == phase1_record
+
+
+def test_phase2_analytics_returns_metrics_and_only_phase2_records(
+    replay_context,
+):
+    client, fake_database, _ = replay_context
+    phase1_record = {
+        "experiment_id": "EXP000",
+        "chain_id": "CHAIN-PHASE1",
+        "status": "validated",
+        "validated_steps": 1,
+        "total_steps": 1,
+        "steps": [],
+        "timestamp": "2026-10-01T11:00:00+00:00",
+    }
+    phase2_record = {
+        "evaluation_type": "phase2_condition",
+        "source": "phase2_condition_runner",
+        "experiment_id": "EXP001",
+        "mode": "adaptive",
+        "condition": "rule_based_fixed_mitigation",
+        "selection_correct": True,
+        "mitigation_control": "tool_allowlist",
+        "mitigation_selected": True,
+        "mitigation_applied": True,
+        "attack_success_before": True,
+        "attack_success_after": False,
+        "chain_disrupted": True,
+        "mitigation_validation": True,
+        "residual_vulnerable_steps": [],
+        "llm_calls": 0,
+    }
+    fake_database.evaluation_results.insert_one(phase1_record)
+    fake_database.evaluation_results.insert_one(phase2_record)
+
+    response = client.get("/phase2/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"metrics", "records"}
+    assert body["metrics"] == {
+        "rule_based_fixed_mitigation": {
+            "experiment_count": 1,
+            "mitigation_selection_accuracy": 1.0,
+            "mitigation_application_success": 1.0,
+            "attack_success_rate_before": 1.0,
+            "attack_success_rate_after": 0.0,
+            "chain_disruption_rate": 1.0,
+            "mitigation_validation_rate": 1.0,
+            "residual_vulnerable_steps": [],
+            "llm_calls": 0,
+        }
+    }
+    assert body["records"] == [phase2_record]
+
+
+def test_phase2_analytics_without_records_returns_empty_list_and_default_metrics(
+    replay_context,
+):
+    client, _, _ = replay_context
+
+    response = client.get("/phase2/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["records"] == []
+    assert body["metrics"] == {}
+
+
 def test_phase1_route_smoke_regression(replay_context):
     client, _, _ = replay_context
 
@@ -390,10 +545,30 @@ def test_get_mitigation_result_returns_completed_run(replay_context):
             "status": "completed",
             "created_at": "2026-10-01T12:00:00+00:00",
             "updated_at": "2026-10-01T12:05:00+00:00",
-            "selection": {"selected_control": "tool_allowlist"},
-            "application": {"status": "applied"},
-            "replay": {"test": "tool_access_test"},
-            "disruption": {"disrupted": True},
+            "selection": {
+                "selected_control": "tool_allowlist",
+                "reason": "Restrict tool access.",
+                "confidence": 0.92,
+            },
+            "application": {
+                "selected_control": "tool_allowlist",
+                "status": "applied",
+                "execution_info": {},
+            },
+            "replay": {
+                "test": "tool_access_test",
+                "before_result": {},
+                "after_result": {},
+                "blocked_after_mitigation": True,
+            },
+            "disruption": {
+                "chain_id": "CHAIN001",
+                "before_validation": {},
+                "after_validation": {},
+                "disrupted": True,
+                "residual_vulnerable_steps": [],
+                "validation_result": {},
+            },
         }
     )
 
@@ -404,15 +579,25 @@ def test_get_mitigation_result_returns_completed_run(replay_context):
 
     assert response.status_code == 200
     body = response.json()
+    result = MitigationResultResponse.model_validate(body)
     assert body["mitigation_run_id"] == "MIT-1234abcd"
     assert body["experiment_id"] == "EXP001"
     assert body["status"] == "completed"
-    assert "selection" in body
-    assert "application" in body
-    assert "replay" in body
-    assert "disruption" in body
-    assert "created_at" in body
-    assert "updated_at" in body
+    assert result.selection.mitigation_run_id == "MIT-1234abcd"
+    assert result.selection.selected_control == "tool_allowlist"
+    assert result.selection.reason == "Restrict tool access."
+    assert result.selection.confidence == 0.92
+
+
+def test_get_mitigation_result_rejects_incomplete_run(replay_context):
+    client, _, _ = replay_context
+
+    response = client.get(
+        "/experiments/EXP001/mitigation/result",
+        params={"mitigation_run_id": "MIT-1234abcd"},
+    )
+
+    assert response.status_code == 409
 
 
 def test_get_mitigation_result_missing_run_returns_404(replay_context):

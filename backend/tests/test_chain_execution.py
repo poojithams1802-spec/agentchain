@@ -300,3 +300,114 @@ def test_execute_chain_returns_400_for_invalid_p4_result(
     assert calls == [("EXP001", "CHAIN001")]
     assert converter_calls == []
     assert database.evaluation_results.documents == []
+
+
+def test_phase3_chain_validation_returns_and_persists_execution_cost(
+    execution_context,
+    monkeypatch,
+):
+    client, database, _, _, _, _ = execution_context
+    phase1_record = {
+        "evaluation_type": "phase1_validation",
+        "experiment_id": "EXP001",
+        "status": "validated",
+    }
+    phase2_record = {
+        "evaluation_type": "phase2_mitigation",
+        "experiment_id": "EXP001",
+        "status": "completed",
+    }
+    database.evaluation_results.documents.extend(
+        [phase1_record, phase2_record]
+    )
+    original_records = deepcopy(database.evaluation_results.documents)
+    validation_result = {
+        "chain_id": "CHAIN001",
+        "status": "validated",
+        "validated_steps": 2,
+        "total_steps": 2,
+        "chain_length": 2,
+        "validation_rate": 1.0,
+        "all_findings_reproduced": True,
+        "steps": [
+            {
+                "test": "permission_test",
+                "valid": True,
+                "execution_cost": {
+                    "test_count": 2,
+                    "execution_time_seconds": 0.25,
+                },
+            },
+            {
+                "test": "tool_access_test",
+                "valid": True,
+                "execution_cost": {
+                    "test_count": 3,
+                    "execution_time_seconds": 0.5,
+                },
+            },
+        ],
+    }
+    validator_calls = []
+
+    class FakeChainValidator:
+        def __init__(self, experiment_id):
+            validator_calls.append(("init", experiment_id))
+
+        def validate_chain(self, chain_id, steps):
+            validator_calls.append(("validate", chain_id, steps))
+            return validation_result
+
+    monkeypatch.setattr(main, "ChainValidator", FakeChainValidator)
+
+    response = client.post("/chains/CHAIN001/validate")
+
+    expected_execution_cost = {
+        "test_count": 5,
+        "execution_time_seconds": 0.75,
+    }
+    assert response.status_code == 200
+    assert response.json()["execution_cost"] == expected_execution_cost
+    assert response.json()["chain_length"] == 2
+    assert response.json()["validation_rate"] == 1.0
+    assert validator_calls == [
+        ("init", "EXP001"),
+        ("validate", "CHAIN001", ["permission_test", "tool_access_test"]),
+    ]
+    assert database.evaluation_results.documents[:2] == original_records
+    assert len(database.evaluation_results.documents) == 3
+    persisted = database.evaluation_results.documents[2]
+    assert persisted["evaluation_type"] == "phase3_chain_validation"
+    assert persisted["experiment_id"] == "EXP001"
+    assert persisted["chain_id"] == "CHAIN001"
+    assert persisted["status"] == "validated"
+    assert persisted["validated_steps"] == 2
+    assert persisted["total_steps"] == 2
+    assert persisted["chain_length"] == 2
+    assert persisted["validation_rate"] == 1.0
+    assert persisted["all_findings_reproduced"] is True
+    assert persisted["steps"] == validation_result["steps"]
+    assert persisted["execution_cost"] == expected_execution_cost
+    assert persisted["timestamp"]
+
+
+def test_phase3_chain_validation_returns_404_for_missing_chain(
+    execution_context,
+    monkeypatch,
+):
+    client, database, _, _, _, _ = execution_context
+    database.attack_chains = FakeCollection()
+    validator_calls = []
+
+    class UnexpectedChainValidator:
+        def __init__(self, experiment_id):
+            validator_calls.append(experiment_id)
+
+    monkeypatch.setattr(main, "ChainValidator", UnexpectedChainValidator)
+
+    response = client.post("/chains/MISSING/validate")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Chain not found"}
+    assert validator_calls == []
+    assert database.evaluation_results.documents == []

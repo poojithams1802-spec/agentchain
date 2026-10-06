@@ -1110,12 +1110,34 @@ def validate_chain(
         steps,
     )
 
+    step_results = validation_result["steps"]
+    execution_cost = {
+        "test_count": sum(
+            step.get("execution_cost", {}).get("test_count", 0)
+            for step in step_results
+            if isinstance(step.get("execution_cost"), dict)
+        ),
+        "execution_time_seconds": sum(
+            step.get("execution_cost", {}).get(
+                "execution_time_seconds",
+                0.0,
+            )
+            for step in step_results
+            if isinstance(step.get("execution_cost"), dict)
+        ),
+    }
+    validation_result = {
+        **validation_result,
+        "execution_cost": execution_cost,
+    }
+
     # ----------------------------------------
     # Store validation result
     # ----------------------------------------
 
     db.evaluation_results.insert_one(
         {
+            "evaluation_type": "phase3_chain_validation",
             "experiment_id": experiment_id,
             "chain_id": chain_id,
             "status": validation_result["status"],
@@ -1125,7 +1147,20 @@ def validate_chain(
             "total_steps": validation_result[
                 "total_steps"
             ],
+            "chain_length": validation_result.get(
+                "chain_length",
+                validation_result["total_steps"],
+            ),
+            "validation_rate": validation_result.get(
+                "validation_rate",
+                0.0,
+            ),
+            "all_findings_reproduced": validation_result.get(
+                "all_findings_reproduced",
+                False,
+            ),
             "steps": validation_result["steps"],
+            "execution_cost": execution_cost,
             "timestamp": datetime.now(
                 timezone.utc
             ).isoformat(),

@@ -7,7 +7,7 @@ from scoring import CandidateMetadata, CandidateScorer
 
 from schemas import (
     PlannerDecision,
-    PlannerInput
+    PlannerInput,
 )
 
 
@@ -22,13 +22,13 @@ class AdaptivePlanner:
     4. Ask the LLM to select an allowed test.
     5. Validate the LLM decision.
     6. Use a deterministic fallback when the LLM fails.
+    7. Respect the Phase 3 adaptive testing budget.
     """
 
     def __init__(self) -> None:
         self.llm_client = GeminiClient()
         self.retriever = HybridKnowledgeRetriever()
         self.scorer = CandidateScorer()
-
 
     def calculate_rag_relevance(
         self,
@@ -91,6 +91,155 @@ class AdaptivePlanner:
             1.0,
         )
 
+
+    def get_chain_context(
+        self,
+        planner_input: PlannerInput,
+    ) -> dict[str, Any]:
+        """
+        Extract and normalize the current multi-step attack-chain
+        context for adaptive planning.
+
+        Expected chain context:
+
+        chain_id
+        ordered_steps
+        dependencies
+        validation_result
+        """
+
+        chain_state = planner_input.chain_state or {}
+
+        return {
+            "chain_id": chain_state.get(
+                "chain_id"
+            ),
+            "ordered_steps": chain_state.get(
+                "ordered_steps",
+                [],
+            ),
+            "dependencies": chain_state.get(
+                "dependencies",
+                {},
+            ),
+            "validation_result": chain_state.get(
+                "validation_result",
+                {},
+            ),
+        }
+
+    def get_residual_chain_context(
+        self,
+        planner_input: PlannerInput,
+    ) -> dict[str, Any]:
+        """
+        Derive residual attack-chain state from the current
+        chain context.
+
+        This method only reasons over chain state already
+        supplied by the controlled chain executor/validator.
+
+        It does not execute, modify, or validate chain steps.
+        """
+
+        chain_context = self.get_chain_context(
+            planner_input
+        )
+
+        ordered_steps = chain_context.get(
+            "ordered_steps",
+            []
+        )
+
+        validation_result = chain_context.get(
+            "validation_result",
+            {}
+        )
+
+        completed_steps = []
+        residual_steps = []
+
+        # -----------------------------------------------------
+        # Extract explicitly reported residual steps
+        # -----------------------------------------------------
+
+        reported_residual = validation_result.get(
+            "residual_steps",
+            []
+        )
+
+        if isinstance(
+            reported_residual,
+            list,
+        ):
+            residual_steps = [
+                str(step)
+                for step in reported_residual
+            ]
+
+        # -----------------------------------------------------
+        # Extract explicitly completed steps
+        # -----------------------------------------------------
+
+        reported_completed = validation_result.get(
+            "completed_steps",
+            []
+        )
+
+        if isinstance(
+            reported_completed,
+            list,
+        ):
+            completed_steps = [
+                str(step)
+                for step in reported_completed
+            ]
+
+        # -----------------------------------------------------
+        # Derive residual steps when the validator has not
+        # explicitly provided them.
+        # -----------------------------------------------------
+
+        if (
+            not residual_steps
+            and ordered_steps
+        ):
+            residual_steps = [
+                str(step)
+                for step in ordered_steps
+                if str(step)
+                not in completed_steps
+            ]
+
+        # -----------------------------------------------------
+        # Identify the next relevant residual step.
+        # -----------------------------------------------------
+
+        next_residual_step = (
+            residual_steps[0]
+            if residual_steps
+            else None
+        )
+
+        # -----------------------------------------------------
+        # Determine whether residual attack-chain risk remains.
+        # -----------------------------------------------------
+
+        residual_risk = bool(
+            residual_steps
+        )
+
+        return {
+            "chain_id": chain_context.get(
+                "chain_id"
+            ),
+            "completed_steps": completed_steps,
+            "residual_steps": residual_steps,
+            "next_residual_step": next_residual_step,
+            "residual_risk": residual_risk,
+            "validation_result": validation_result,
+        }
+
     def build_candidates(
         self,
         planner_input: PlannerInput,
@@ -107,6 +256,16 @@ class AdaptivePlanner:
 
         previous_tests = set(
             planner_input.previous_tests
+        )
+
+        chain_context = self.get_chain_context(
+            planner_input
+        )
+
+        residual_context = (
+            self.get_residual_chain_context(
+                planner_input
+            )
         )
 
         unexecuted_tests = [
@@ -136,8 +295,6 @@ class AdaptivePlanner:
                 )
             )
         ]
-
-        candidates = []
 
         candidates = []
 
@@ -179,6 +336,9 @@ class AdaptivePlanner:
             planner_input.retrieved_knowledge
         ).lower()
 
+        # Keep variable available for future chain/RAG extensions.
+        _ = knowledge_text
+
         # -----------------------------------------------------
         # Adaptive dependency relationships
         # -----------------------------------------------------
@@ -188,6 +348,30 @@ class AdaptivePlanner:
             "tool_access_test": "memory_access_test",
         }
 
+        ordered_steps = chain_context.get(
+            "ordered_steps",
+            []
+        )
+
+        chain_dependencies = chain_context.get(
+            "dependencies",
+            {}
+        )
+
+        validation_result = chain_context.get(
+            "validation_result",
+            {}
+        )
+
+        residual_steps = residual_context.get(
+            "residual_steps",
+            []
+        )
+
+        next_residual_step = residual_context.get(
+            "next_residual_step"
+        )
+
         for test_name in eligible_tests:
             test_text = test_name.lower()
 
@@ -196,6 +380,78 @@ class AdaptivePlanner:
             # -------------------------------------------------
 
             relevance = 0.5
+
+            # -------------------------------------------------
+            # Chain-context relevance
+            # -------------------------------------------------
+
+            chain_text = " ".join(
+                str(step)
+                for step in ordered_steps
+            ).lower()
+
+            if (
+                test_text.replace("_", " ")
+                in chain_text
+            ):
+                relevance = max(
+                    relevance,
+                    0.9,
+                )
+
+            # If this test is connected to a known dependency
+            # in the current chain, increase its relevance.
+            for step, prerequisites in (
+                chain_dependencies.items()
+            ):
+                step_text = str(step).lower()
+
+                if (
+                    test_text.replace("_", " ")
+                    in step_text
+                    and prerequisites
+                ):
+                    if any(
+                        str(prerequisite).lower()
+                        in chain_text
+                        for prerequisite in prerequisites
+                    ):
+                        relevance = max(
+                            relevance,
+                            0.95,
+                        )
+
+            # -------------------------------------------------
+            # Residual-chain relevance
+            # -------------------------------------------------
+
+            residual_text = " ".join(
+                str(step)
+                for step in residual_steps
+            ).lower()
+
+            if (
+                test_text.replace("_", " ")
+                in residual_text
+            ):
+                relevance = max(
+                    relevance,
+                    0.95,
+                )
+
+            if next_residual_step:
+                next_step_text = str(
+                    next_residual_step
+                ).lower()
+
+                if (
+                    test_text.replace("_", " ")
+                    in next_step_text
+                ):
+                    relevance = max(
+                        relevance,
+                        1.0,
+                    )
 
             # -------------------------------------------------
             # Finding-based relevance
@@ -235,7 +491,6 @@ class AdaptivePlanner:
                         1.0,
                     )
 
-
             # -------------------------------------------------
             # RAG-based relevance
             # -------------------------------------------------
@@ -250,7 +505,6 @@ class AdaptivePlanner:
                     1.0,
                     relevance + (0.10 * rag_relevance),
                 )
-
 
             # -------------------------------------------------
             # Adaptive dependency relevance
@@ -269,25 +523,52 @@ class AdaptivePlanner:
                     )
 
             # -------------------------------------------------
-            # RAG-based relevance
-            # -------------------------------------------------
-
-            rag_relevance = self.calculate_rag_relevance(
-                test_name=test_name,
-                retrieved_knowledge=planner_input.retrieved_knowledge,
-            )
-
-            if rag_relevance > 0.0:
-                relevance = min(
-                    1.0,
-                    relevance + (0.10 * rag_relevance),
-                )
-
-            # -------------------------------------------------
             # Expected information gain
             # -------------------------------------------------
 
             information_gain = 0.75
+
+            # -------------------------------------------------
+            # Residual-chain information gain
+            # -------------------------------------------------
+
+            if residual_steps:
+                information_gain = max(
+                    information_gain,
+                    0.90,
+                )
+
+            if next_residual_step:
+                next_step_text = str(
+                    next_residual_step
+                ).lower()
+
+                if (
+                    test_text.replace("_", " ")
+                    in next_step_text
+                ):
+                    information_gain = max(
+                        information_gain,
+                        1.0,
+                    )
+
+            # -------------------------------------------------
+            # Chain validation-aware information gain
+            # -------------------------------------------------
+
+            if validation_result:
+                validation_rate = validation_result.get(
+                    "validation_rate"
+                )
+
+                if (
+                    isinstance(validation_rate, (int, float))
+                    and validation_rate < 1.0
+                ):
+                    information_gain = max(
+                        information_gain,
+                        0.95,
+                    )
 
             if "permission" in test_text:
                 information_gain = 0.9
@@ -322,7 +603,6 @@ class AdaptivePlanner:
             # -------------------------------------------------
             # Testing cost
             # -------------------------------------------------
-
 
             testing_cost = 0.2
 
@@ -361,7 +641,6 @@ class AdaptivePlanner:
         return self.scorer.rank_candidates(
             candidates
         )
-
 
     def build_candidate_context(
         self,
@@ -431,7 +710,7 @@ class AdaptivePlanner:
             priority=ranked_candidates[0][1],
             confidence=decision.confidence,
         )
-    
+
     def build_query(
         self,
         planner_input: PlannerInput
@@ -508,6 +787,7 @@ class AdaptivePlanner:
         - Current findings
         - Retrieved security knowledge
         - Chain state
+        - Testing budget
         - Required output format
         """
 
@@ -529,6 +809,15 @@ class AdaptivePlanner:
             ),
             "available_tests": (
                 planner_input.available_tests
+            ),
+            "testing_budget": (
+                planner_input.testing_budget.model_dump()
+            ),
+            "budget_used": (
+                planner_input.budget_used.model_dump()
+            ),
+            "remaining_budget": (
+                self.remaining_budget(planner_input)
             ),
             "candidate_scores": candidate_context,
             "retrieved_knowledge": (
@@ -588,8 +877,14 @@ Consider the following information:
 - Available tests
 - Retrieved security knowledge
 - Current chain state
+- Chain ID
+- Ordered attack-chain steps
+- Chain dependencies
+- Chain validation result
 - Expected information gain
 - Testing cost
+- Remaining testing budget
+- Remaining LLM-call budget
 - Authorization boundaries
 - Least-privilege principles
 - Evidence requirements
@@ -623,6 +918,49 @@ You must still:
 - Never select a previous test.
 - Select exactly one test.
 - Respect sandbox restrictions.
+
+==================================================
+TESTING BUDGET
+==================================================
+
+The planner operates under a finite testing budget.
+
+You must respect:
+
+- Maximum number of tests
+- Maximum number of LLM calls
+- Maximum testing time
+
+Prefer candidates that provide high security value
+relative to their testing cost.
+
+Never assume unlimited testing resources.
+
+
+==================================================
+ATTACK-CHAIN REASONING
+==================================================
+
+When chain context is available:
+
+- Consider the current chain_id.
+- Consider the ordered chain steps.
+- Respect the declared step dependencies.
+- Prefer tests that provide evidence about the
+  current or next relevant chain step.
+- Use the validation result to identify whether
+  additional testing is useful.
+- Consider completed chain steps.
+- Consider residual chain steps.
+- If residual steps remain, prioritize evidence
+  about the next relevant residual step.
+- Treat residual steps as unresolved chain state,
+  not as confirmed vulnerabilities.
+- Do not invent residual steps.
+- Do not invent chain steps.
+- Do not execute or control the attack chain directly.
+- Chain execution and validation are handled by
+  the controlled sandbox components.
 
 ==================================================
 IMPORTANT TEST SELECTION RULES
@@ -664,6 +1002,53 @@ Do not include Markdown.
 Do not include code fences.
 Do not include additional explanation.
 """
+
+    # ---------------------------------------------------------
+    # Budget helpers
+    # ---------------------------------------------------------
+
+    def budget_exhausted(
+        self,
+        planner_input: PlannerInput,
+    ) -> bool:
+        """
+        Check whether the adaptive testing budget is exhausted.
+        """
+
+        budget = planner_input.testing_budget
+        used = planner_input.budget_used
+
+        return (
+            used.tests >= budget.max_tests
+            or used.llm_calls >= budget.max_llm_calls
+            or used.time_seconds >= budget.max_time_seconds
+        )
+
+    def remaining_budget(
+        self,
+        planner_input: PlannerInput,
+    ) -> dict[str, float]:
+        """
+        Return the remaining adaptive testing budget.
+        """
+
+        budget = planner_input.testing_budget
+        used = planner_input.budget_used
+
+        return {
+            "tests": max(
+                0,
+                budget.max_tests - used.tests,
+            ),
+            "llm_calls": max(
+                0,
+                budget.max_llm_calls - used.llm_calls,
+            ),
+            "time_seconds": max(
+                0.0,
+                budget.max_time_seconds - used.time_seconds,
+            ),
+        }
 
     # ---------------------------------------------------------
     # Fallback decision
@@ -714,7 +1099,8 @@ Do not include additional explanation.
                 reason=(
                     "Fallback selected the highest-ranked "
                     "unexecuted candidate based on candidate "
-                    "scoring."
+                    "scoring. "
+                    + reason
                 ),
                 priority=best_score,
                 confidence=0.1,
@@ -862,8 +1248,13 @@ Do not include additional explanation.
         """
 
         # -----------------------------------------------------
-        # Step 0: Validate planner input
+        # Step 0: Validate planner input and budget
         # -----------------------------------------------------
+
+        if self.budget_exhausted(planner_input):
+            raise RuntimeError(
+                "Adaptive testing budget exhausted."
+            )
 
         if not planner_input.available_tests:
             raise ValueError(
@@ -927,6 +1318,20 @@ Do not include additional explanation.
         # -----------------------------------------------------
 
         try:
+            # Do not make another LLM call after the LLM
+            # budget has been exhausted.
+            if (
+                planner_input.budget_used.llm_calls
+                >= planner_input.testing_budget.max_llm_calls
+            ):
+                return self.fallback_decision(
+                    planner_input,
+                    reason="LLM-call budget exhausted.",
+                )
+
+            # Record the LLM call before making it.
+            planner_input.budget_used.llm_calls += 1
+
             response_data = (
                 self.llm_client.generate_json(
                     prompt
@@ -981,4 +1386,3 @@ Do not include additional explanation.
                     "be used."
                 )
             )
-        

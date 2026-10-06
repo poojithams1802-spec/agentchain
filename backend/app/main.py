@@ -47,6 +47,7 @@ from sandbox.evaluation.mitigation_evaluation import (
     build_mitigation_experiment_record,
 )
 from sandbox.evaluation.phase2_runner import run_all_phase2_experiments
+from sandbox.evaluation.phase2_metrics import calculate_phase2_metrics
 from sandbox.evaluation.research_metrics import calculate_research_metrics
 from sandbox.execution.sandbox_executor import execute_sandbox_test
 from sandbox.validator.chain_validator import ChainValidator
@@ -1099,18 +1100,19 @@ def get_analytics():
 
 @app.get("/phase2/analytics")
 def get_phase2_analytics():
-    mitigation_records = list(
+    records = list(
         db.evaluation_results.find(
-            {"evaluation_type": "phase2_mitigation"},
+            {
+                "evaluation_type": "phase2_condition",
+                "source": "phase2_condition_runner",
+            },
             {"_id": 0},
         )
     )
 
     return {
-        "metrics": calculate_research_metrics(
-            {"experiments": mitigation_records}
-        ),
-        "records": mitigation_records,
+        "metrics": calculate_phase2_metrics(records),
+        "records": records,
     }
 
 

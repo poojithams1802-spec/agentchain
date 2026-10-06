@@ -29,16 +29,34 @@ finally:
 
 
 class FakeCollection:
+    def __init__(self, documents=()):
+        self.documents = documents
+
     def find(self, query=None, projection=None):
-        return []
+        query = query or {}
+        records = [
+            document
+            for document in self.documents
+            if all(document.get(key) == value for key, value in query.items())
+        ]
+        if projection == {"_id": 0}:
+            return [
+                {
+                    key: value
+                    for key, value in document.items()
+                    if key != "_id"
+                }
+                for document in records
+            ]
+        return records
 
     def count_documents(self, query):
         return 0
 
 
 class FakeDatabase:
-    def __init__(self):
-        self.evaluation_results = FakeCollection()
+    def __init__(self, evaluation_results=()):
+        self.evaluation_results = FakeCollection(evaluation_results)
         self.experiments = FakeCollection()
         self.findings = FakeCollection()
         self.attack_chains = FakeCollection()
@@ -179,3 +197,107 @@ def test_existing_analytics_routes_do_not_run_phase2_batch(
         "/experiments/{experiment_id}/mitigation/result",
         "GET",
     ) in existing_routes
+
+
+def test_phase2_analytics_returns_metrics_for_all_four_conditions(
+    client,
+    monkeypatch,
+):
+    conditions = [
+        "rule_based_fixed_mitigation",
+        "llm_recommendation_only",
+        "level3_proposed",
+        "wrong_control",
+    ]
+    records = [
+        {
+            "experiment_id": f"P2-{index}",
+            "evaluation_type": "phase2_condition",
+            "source": "phase2_condition_runner",
+            "timestamp": "2026-10-06T00:00:00+00:00",
+            "condition": condition,
+            "selection_correct": True,
+            "mitigation_control": "authorization_gate",
+            "mitigation_applied": condition != "llm_recommendation_only",
+            "attack_success_before": (
+                None if condition == "llm_recommendation_only" else True
+            ),
+            "attack_success_after": (
+                None if condition == "llm_recommendation_only" else False
+            ),
+            "chain_disrupted": condition != "llm_recommendation_only",
+            "mitigation_validation": condition != "llm_recommendation_only",
+            "residual_vulnerable_steps": [],
+            "llm_calls": 0 if index == 0 else 1,
+        }
+        for index, condition in enumerate(conditions)
+    ]
+    monkeypatch.setattr(main, "db", FakeDatabase(records))
+
+    response = client.get("/phase2/analytics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"metrics", "records"}
+    assert set(body["metrics"]) == set(conditions)
+    assert body["records"] == records
+
+
+def test_phase2_analytics_returns_empty_metrics_and_records(
+    client,
+    monkeypatch,
+):
+    monkeypatch.setattr(main, "db", FakeDatabase())
+
+    response = client.get("/phase2/analytics")
+
+    assert response.status_code == 200
+    assert response.json() == {"metrics": {}, "records": []}
+
+
+def test_phase2_analytics_excludes_unrelated_and_legacy_records(
+    client,
+    monkeypatch,
+):
+    phase2_condition_record = {
+        "experiment_id": "P2-RULE-001",
+        "evaluation_type": "phase2_condition",
+        "source": "phase2_condition_runner",
+        "timestamp": "2026-10-06T00:00:00+00:00",
+        "condition": "rule_based_fixed_mitigation",
+        "selection_correct": True,
+        "mitigation_control": "authorization_gate",
+        "mitigation_applied": True,
+        "attack_success_before": True,
+        "attack_success_after": False,
+        "chain_disrupted": True,
+        "mitigation_validation": True,
+        "residual_vulnerable_steps": [],
+        "llm_calls": 0,
+    }
+    records = [
+        phase2_condition_record,
+        {
+            "experiment_id": "LEGACY",
+            "evaluation_type": "phase2_mitigation",
+            "source": "legacy",
+            "condition": "rule_based_fixed_mitigation",
+        },
+        {
+            "experiment_id": "OTHER",
+            "evaluation_type": "phase1_validation",
+            "source": "phase2_condition_runner",
+        },
+        {
+            "experiment_id": "OTHER-SOURCE",
+            "evaluation_type": "phase2_condition",
+            "source": "other_runner",
+        },
+    ]
+    monkeypatch.setattr(main, "db", FakeDatabase(records))
+
+    response = client.get("/phase2/analytics")
+
+    assert response.status_code == 200
+    assert response.json()["records"] == [phase2_condition_record]
+    assert list(response.json()["metrics"]) == ["rule_based_fixed_mitigation"]

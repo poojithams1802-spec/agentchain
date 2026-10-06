@@ -62,4 +62,52 @@ export async function validateChain(chainId) {
 export async function getAnalytics() {
   const { data } = await http.get('/analytics')
   return data
-} 
+}
+
+// ---------------- Phase 2: mitigation ----------------
+export function apiError(e) {
+  const d = e?.response?.data?.detail
+  if (typeof d === 'string') return d
+  if (Array.isArray(d)) return d.map((x) => x.msg).join('; ')
+  return e?.message || 'Request failed'
+}
+
+// Selection calls the LLM + RAG and can take ~1 minute, so use a long timeout.
+const SLOW = { timeout: 180000 }
+
+export async function selectMitigation(experimentId, body) {
+  const { data } = await http.post(`/experiments/${experimentId}/mitigation/select`, body, SLOW)
+  return data
+}
+
+export async function applyMitigation(experimentId, body) {
+  const { data } = await http.post(`/experiments/${experimentId}/mitigation/apply`, body, SLOW)
+  return data
+}
+
+export async function replayMitigation(experimentId, body) {
+  const { data } = await http.post(`/experiments/${experimentId}/mitigation/replay`, body, SLOW)
+  return data
+}
+
+export async function getMitigationResult(experimentId, mitigationRunId) {
+  const { data } = await http.get(`/experiments/${experimentId}/mitigation/result`, {
+    params: { mitigation_run_id: mitigationRunId },
+  })
+  return data
+}
+
+// Expected: GET /phase2/analytics -> { metrics, records } (see README_PHASE2_FRONTEND.md).
+// Falls back to a bundled snapshot if the endpoint does not exist yet.
+export async function getPhase2Analytics() {
+  try {
+    const { data } = await http.get('/analytics')
+    return { ...data, source: 'live' }
+  } catch (e) {
+    if (!e.response || e.response.status === 404) {
+      const snap = (await import('../mock/phase2.json')).default
+      return { ...snap, source: 'snapshot' }
+    }
+    throw e
+  }
+}

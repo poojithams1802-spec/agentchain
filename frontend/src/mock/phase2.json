@@ -1,0 +1,241 @@
+{
+ "generated_at": "2026-10-05T05:04:48.528681+00:00",
+ "metrics": {
+  "llm_recommendation_only": {
+   "experiment_count": 3,
+   "mitigation_selection_accuracy": 1.0,
+   "mitigation_application_success": null,
+   "attack_success_rate_before": null,
+   "attack_success_rate_after": null,
+   "chain_disruption_rate": null,
+   "mitigation_validation_rate": null,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 3
+  },
+  "rule_based_fixed_mitigation": {
+   "experiment_count": 3,
+   "mitigation_selection_accuracy": 1.0,
+   "mitigation_application_success": 1.0,
+   "attack_success_rate_before": 1.0,
+   "attack_success_rate_after": 0.0,
+   "chain_disruption_rate": 1.0,
+   "mitigation_validation_rate": 1.0,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 0
+  },
+  "wrong_control": {
+   "experiment_count": 3,
+   "mitigation_selection_accuracy": 0.0,
+   "mitigation_application_success": 1.0,
+   "attack_success_rate_before": 1.0,
+   "attack_success_rate_after": 1.0,
+   "chain_disruption_rate": 0.0,
+   "mitigation_validation_rate": 0.0,
+   "residual_vulnerable_steps": [
+    "permission_test",
+    "tool_access_test",
+    "memory_access_test"
+   ],
+   "llm_calls": 3
+  },
+  "level3_proposed": {
+   "experiment_count": 3,
+   "mitigation_selection_accuracy": 1.0,
+   "mitigation_application_success": 1.0,
+   "attack_success_rate_before": 1.0,
+   "attack_success_rate_after": 0.0,
+   "chain_disruption_rate": 1.0,
+   "mitigation_validation_rate": 1.0,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 3
+  }
+ },
+ "records": [
+  {
+   "experiment_id": "P2-RULE-001",
+   "condition": "rule_based_fixed_mitigation",
+   "test": "permission_test",
+   "expected_control": "authorization_gate",
+   "selected_control": "authorization_gate",
+   "selection_correct": true,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": false,
+   "chain_disrupted": true,
+   "mitigation_validation": true,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 0
+  },
+  {
+   "experiment_id": "P2-RULE-002",
+   "condition": "rule_based_fixed_mitigation",
+   "test": "tool_access_test",
+   "expected_control": "tool_allowlist",
+   "selected_control": "tool_allowlist",
+   "selection_correct": true,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": false,
+   "chain_disrupted": true,
+   "mitigation_validation": true,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 0
+  },
+  {
+   "experiment_id": "P2-RULE-003",
+   "condition": "rule_based_fixed_mitigation",
+   "test": "memory_access_test",
+   "expected_control": "memory_validation",
+   "selected_control": "memory_validation",
+   "selection_correct": true,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": false,
+   "chain_disrupted": true,
+   "mitigation_validation": true,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 0
+  },
+  {
+   "experiment_id": "P2-LLM-001",
+   "condition": "llm_recommendation_only",
+   "test": "permission_test",
+   "expected_control": "authorization_gate",
+   "selected_control": "authorization_gate",
+   "selection_correct": true,
+   "mitigation_applied": false,
+   "attack_success_before": null,
+   "attack_success_after": null,
+   "chain_disrupted": false,
+   "mitigation_validation": false,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 1
+  },
+  {
+   "experiment_id": "P2-LLM-002",
+   "condition": "llm_recommendation_only",
+   "test": "tool_access_test",
+   "expected_control": "tool_allowlist",
+   "selected_control": "tool_allowlist",
+   "selection_correct": true,
+   "mitigation_applied": false,
+   "attack_success_before": null,
+   "attack_success_after": null,
+   "chain_disrupted": false,
+   "mitigation_validation": false,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 1
+  },
+  {
+   "experiment_id": "P2-LLM-003",
+   "condition": "llm_recommendation_only",
+   "test": "memory_access_test",
+   "expected_control": "memory_validation",
+   "selected_control": "memory_validation",
+   "selection_correct": true,
+   "mitigation_applied": false,
+   "attack_success_before": null,
+   "attack_success_after": null,
+   "chain_disrupted": false,
+   "mitigation_validation": false,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 1
+  },
+  {
+   "experiment_id": "P2-L3-001",
+   "condition": "level3_proposed",
+   "test": "permission_test",
+   "expected_control": "authorization_gate",
+   "selected_control": "authorization_gate",
+   "selection_correct": true,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": false,
+   "chain_disrupted": true,
+   "mitigation_validation": true,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 1
+  },
+  {
+   "experiment_id": "P2-L3-002",
+   "condition": "level3_proposed",
+   "test": "tool_access_test",
+   "expected_control": "tool_allowlist",
+   "selected_control": "tool_allowlist",
+   "selection_correct": true,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": false,
+   "chain_disrupted": true,
+   "mitigation_validation": true,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 1
+  },
+  {
+   "experiment_id": "P2-L3-003",
+   "condition": "level3_proposed",
+   "test": "memory_access_test",
+   "expected_control": "memory_validation",
+   "selected_control": "memory_validation",
+   "selection_correct": true,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": false,
+   "chain_disrupted": true,
+   "mitigation_validation": true,
+   "residual_vulnerable_steps": [],
+   "llm_calls": 1
+  },
+  {
+   "experiment_id": "P2-WRONG-001",
+   "condition": "wrong_control",
+   "test": "permission_test",
+   "expected_control": "authorization_gate",
+   "selected_control": "tool_allowlist",
+   "selection_correct": false,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": true,
+   "chain_disrupted": false,
+   "mitigation_validation": false,
+   "residual_vulnerable_steps": [
+    "permission_test"
+   ],
+   "llm_calls": 1
+  },
+  {
+   "experiment_id": "P2-WRONG-002",
+   "condition": "wrong_control",
+   "test": "tool_access_test",
+   "expected_control": "tool_allowlist",
+   "selected_control": "memory_validation",
+   "selection_correct": false,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": true,
+   "chain_disrupted": false,
+   "mitigation_validation": false,
+   "residual_vulnerable_steps": [
+    "tool_access_test"
+   ],
+   "llm_calls": 1
+  },
+  {
+   "experiment_id": "P2-WRONG-003",
+   "condition": "wrong_control",
+   "test": "memory_access_test",
+   "expected_control": "memory_validation",
+   "selected_control": "authorization_gate",
+   "selection_correct": false,
+   "mitigation_applied": true,
+   "attack_success_before": true,
+   "attack_success_after": true,
+   "chain_disrupted": false,
+   "mitigation_validation": false,
+   "residual_vulnerable_steps": [
+    "memory_access_test"
+   ],
+   "llm_calls": 1
+  }
+ ]
+}

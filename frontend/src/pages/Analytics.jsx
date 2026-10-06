@@ -6,6 +6,7 @@ import {
   ErrorState,
 } from '../components/States'
 import { getAnalytics, listExperiments } from '../api/client'
+import { useTheme, chartColors } from '../lib/theme'
 
 import {
   ResponsiveContainer,
@@ -18,6 +19,8 @@ import {
 } from 'recharts'
 
 export default function Analytics() {
+  const { dark } = useTheme()
+  const cc = chartColors(dark)
   const [state, setState] = useState({
     loading: true,
     error: null,
@@ -111,7 +114,7 @@ export default function Analytics() {
       <button
       onClick={load}
       disabled={loading}
-      className="bg-signal text-base-950 text-xs font-medium px-3 py-1.5 rounded-md hover:bg-signal-bright transition-colors disabled:opacity-50"
+      className="btn-primary text-xs font-medium px-3 py-1.5 rounded-md  transition-colors disabled:opacity-50"
       >
       {loading ? 'Refreshing…' : 'Refresh'}
       </button>
@@ -174,13 +177,13 @@ export default function Analytics() {
                     <BarChart data={modeData}>
                       <CartesianGrid
                         strokeDasharray="3 3"
-                        stroke="#2A2F36"
+                        stroke={cc.grid}
                       />
 
                       <XAxis
                         dataKey="mode"
                         tick={{
-                          fill: '#9CA3AF',
+                          fill: cc.axis,
                           fontSize: 12,
                         }}
                       />
@@ -188,17 +191,17 @@ export default function Analytics() {
                       <YAxis
                         allowDecimals={false}
                         tick={{
-                          fill: '#9CA3AF',
+                          fill: cc.axis,
                           fontSize: 12,
                         }}
                       />
 
-                      <Tooltip />
+                      <Tooltip contentStyle={cc.tooltip} cursor={{ fill: cc.cursor }} />
 
                       <Bar
                         dataKey="count"
                         name="Experiments"
-                        fill="#E8A33D"
+                        fill="#3B82F6"
                         radius={[4, 4, 0, 0]}
                       />
                     </BarChart>
@@ -226,13 +229,13 @@ export default function Analytics() {
                     <BarChart data={statusData}>
                       <CartesianGrid
                         strokeDasharray="3 3"
-                        stroke="#2A2F36"
+                        stroke={cc.grid}
                       />
 
                       <XAxis
                         dataKey="status"
                         tick={{
-                          fill: '#9CA3AF',
+                          fill: cc.axis,
                           fontSize: 12,
                         }}
                       />
@@ -240,17 +243,17 @@ export default function Analytics() {
                       <YAxis
                         allowDecimals={false}
                         tick={{
-                          fill: '#9CA3AF',
+                          fill: cc.axis,
                           fontSize: 12,
                         }}
                       />
 
-                      <Tooltip />
+                      <Tooltip contentStyle={cc.tooltip} cursor={{ fill: cc.cursor }} />
 
                       <Bar
                         dataKey="count"
                         name="Experiments"
-                        fill="#5B8DEF"
+                        fill="#8B5CF6"
                         radius={[4, 4, 0, 0]}
                       />
                     </BarChart>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import TopBar from '../components/TopBar'
 import StatCard from '../components/StatCard'
+import LoopHero from '../components/LoopHero'
 import { ModeBadge, StatusBadge } from '../components/Badges'
 import { LoadingState, ErrorState, EmptyState } from '../components/States'
 import {
@@ -99,7 +100,7 @@ export default function Dashboard() {
 
             <Link
               to="/new-experiment"
-              className="flex items-center gap-1.5 bg-signal text-base-950 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-signal-bright transition-colors"
+              className="flex items-center gap-1.5 btn-primary text-sm font-medium px-3 py-1.5 rounded-md  transition-colors"
             >
               <Plus size={15} />
               New Experiment
@@ -109,6 +110,8 @@ export default function Dashboard() {
       />
 
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+        <LoopHero />
+
         {loading && <LoadingState label="Loading dashboard…" />}
 
         {error && <ErrorState message={error} onRetry={load} />}

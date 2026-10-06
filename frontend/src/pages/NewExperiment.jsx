@@ -102,7 +102,7 @@ export default function NewExperiment() {
             <button
               type="submit"
               disabled={submitting}
-              className="bg-signal text-base-950 font-medium text-sm px-4 py-2 rounded-md hover:bg-signal-bright transition-colors disabled:opacity-50"
+              className="btn-primary font-medium text-sm px-4 py-2 rounded-md  transition-colors disabled:opacity-50"
             >
               {submitting ? 'Starting…' : 'Start Experiment'}
             </button>

@@ -2,17 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------- Theme tokens (R G B triplets) ---------- */
+:root {
+  --base-950: 248 250 255;
+  --base-900: 255 255 255;
+  --base-800: 241 245 251;
+  --base-700: 226 232 240;
+  --base-600: 203 213 225;
+  --base-500: 148 163 184;
+  --base-400: 100 116 139;
+  --base-300: 71 85 105;
+  --base-200: 51 65 85;
+  --base-100: 15 23 42;
+  --signal: 37 99 235;
+  --signal-dim: 147 197 253;
+  --signal-bright: 59 130 246;
+  --info: 8 145 178;
+  --sev-critical: 220 38 38;
+  --sev-high: 234 88 12;
+  --sev-medium: 217 119 6;
+  --sev-low: 5 150 105;
+}
+
+.dark {
+  --base-950: 7 17 31;
+  --base-900: 17 31 58;
+  --base-800: 11 23 48;
+  --base-700: 30 45 77;
+  --base-600: 42 59 94;
+  --base-500: 62 80 120;
+  --base-400: 107 124 156;
+  --base-300: 148 163 184;
+  --base-200: 203 213 225;
+  --base-100: 241 245 249;
+  --signal: 96 165 250;
+  --signal-dim: 37 99 235;
+  --signal-bright: 147 197 253;
+  --info: 34 211 238;
+  --sev-critical: 248 113 113;
+  --sev-high: 251 146 60;
+  --sev-medium: 251 191 36;
+  --sev-low: 52 211 153;
+}
+
 html, body, #root {
   height: 100%;
 }
 
 body {
   @apply bg-base-950 text-base-100 font-sans antialiased;
+  transition: background-color 0.3s, color 0.3s;
 }
 
 ::selection {
-  background: #8A6526;
-  color: #0B0D10;
+  background: rgb(var(--signal) / 0.35);
 }
 
 /* visible keyboard focus everywhere */
@@ -21,7 +64,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #E8A33D;
+  outline: 2px solid rgb(var(--signal));
   outline-offset: 2px;
 }
 
@@ -37,9 +80,33 @@ textarea:focus-visible {
   height: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #262B33;
+  background: rgb(var(--base-600));
   border-radius: 4px;
 }
 .scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
+}
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* soft card shadow in light mode only */
+html:not(.dark) .bg-base-900.border {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold text-white
+      bg-gradient-to-r from-blue-600 via-blue-500 to-violet-600 shadow-md shadow-blue-500/20
+      transition hover:from-blue-700 hover:to-violet-700 active:scale-[0.98]
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-ghost-dark {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl font-semibold text-slate-300
+      bg-slate-800/80 border border-slate-700/80 transition hover:bg-slate-700/80 hover:text-white;
+  }
 }

@@ -25,6 +25,7 @@ import {
   getExperimentChains,
   validateChain,
 } from '../api/client'
+import { useTheme, chartColors } from '../lib/theme'
 
 const SEV_COLOR = {
   critical: '#E5484D',
@@ -33,7 +34,7 @@ const SEV_COLOR = {
   low: '#5B9E6F',
 }
 
-function buildGraph(chains, findings) {
+function buildGraph(chains, findings, cc) {
   const findingMap = Object.fromEntries(
     findings.map((f) => [f.test, f]),
   )
@@ -65,13 +66,13 @@ function buildGraph(chains, findings) {
         type: 'default',
 
         style: {
-          background: '#14171C',
+          background: cc.nodeBg,
           border: `1.5px solid ${finding
               ? SEV_COLOR[finding.severity]
-              : '#3A4048'
+              : cc.nodeBorder
             }`,
           borderRadius: 8,
-          color: '#E4E6EA',
+          color: cc.nodeText,
           fontFamily: 'IBM Plex Mono, monospace',
           fontSize: 12,
           padding: 8,
@@ -92,11 +93,11 @@ function buildGraph(chains, findings) {
           target: nodeId,
           animated: true,
           style: {
-            stroke: '#5C636D',
+            stroke: cc.edge,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: '#5C636D',
+            color: cc.edge,
           },
         })
       }
@@ -112,6 +113,8 @@ function buildGraph(chains, findings) {
 }
 
 export default function ChainExplorer() {
+  const { dark } = useTheme()
+  const cc = chartColors(dark)
   const [state, setState] = useState({
     loading: true,
     error: null,
@@ -187,8 +190,9 @@ export default function ChainExplorer() {
       buildGraph(
         state.chains,
         state.findings,
+        cc,
       ),
-    [state.chains, state.findings],
+    [state.chains, state.findings, dark],
   )
 
   const onNodeClick = useCallback(
@@ -268,7 +272,7 @@ export default function ChainExplorer() {
                 }}
               >
                 <Background
-                  color="#1B1F26"
+                  color={cc.dots}
                   gap={20}
                 />
                 <Controls />
@@ -355,7 +359,7 @@ export default function ChainExplorer() {
                 )
               }
               disabled={validating}
-              className="mt-5 w-full bg-signal text-base-950 font-medium text-sm px-3 py-2 rounded-md hover:bg-signal-bright transition-colors disabled:opacity-50"
+              className="mt-5 w-full btn-primary font-medium text-sm px-3 py-2 rounded-md  transition-colors disabled:opacity-50"
             >
               {validating
                 ? 'Validating…'

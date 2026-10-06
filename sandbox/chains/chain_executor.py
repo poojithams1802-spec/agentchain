@@ -6,7 +6,7 @@ The executor is intentionally thin:
 - validates the chain definition
 - delegates actual execution/validation to ChainValidator
 - enriches the result with chain metadata
-- can convert a chain result into the standard research-result structure
+- converts an already-produced chain result into a research result
 
 It does not duplicate sandbox or validation logic.
 """
@@ -94,35 +94,42 @@ def execute_chain(experiment_id, chain_id):
     }
 
 
-def execute_chain_as_research_result(
-    experiment_id,
-    chain_id,
+def chain_result_to_research_result(
+    chain_result,
     mode="adaptive",
     llm_calls=0,
     fallback_used=False,
 ):
     """
-    Execute a controlled chain and convert its result into
+    Convert an already-produced chain execution result into
     the standardized research-result structure.
 
-    This is a Phase 3 integration helper.
+    Important:
+        This function does NOT execute the chain.
 
-    The existing execute_chain() response remains unchanged.
+    It is intended for callers such as P2 that already have
+    a chain_result and need to persist the standardized
+    research-result representation.
     """
 
-    chain_result = execute_chain(
-        experiment_id,
-        chain_id,
-    )
+    if not isinstance(chain_result, dict):
+        raise TypeError(
+            "chain_result must be a dictionary."
+        )
+
+    chain_id = chain_result.get("chain_id")
+
+    steps = chain_result.get("steps", [])
 
     executed_tests = [
         step["test"]
-        for step in chain_result.get("steps", [])
+        for step in steps
+        if "test" in step
     ]
 
     findings = [
         step["finding"]
-        for step in chain_result.get("steps", [])
+        for step in steps
         if step.get("finding") is not None
     ]
 
@@ -140,7 +147,7 @@ def execute_chain_as_research_result(
         validated_chains.append(chain_id)
 
     return record_experiment_result(
-        experiment_id=experiment_id,
+        experiment_id=chain_result.get("experiment_id"),
         mode=mode,
         executed_tests=executed_tests,
         findings=findings,
@@ -156,13 +163,13 @@ def execute_chain_as_research_result(
         ),
         execution_count=chain_result.get(
             "total_steps",
-            0,
+            len(executed_tests),
         ),
         llm_calls=llm_calls,
         fallback_used=fallback_used,
 
         # Phase 3 chain data
-        chain_id=chain_result.get("chain_id"),
+        chain_id=chain_id,
         chain_name=chain_result.get("name"),
         chain_steps=executed_tests,
         chain_length=chain_result.get("chain_length"),
@@ -174,4 +181,33 @@ def execute_chain_as_research_result(
             "all_findings_reproduced"
         ),
         chain_status=chain_result.get("status"),
+    )
+
+
+def execute_chain_as_research_result(
+    experiment_id,
+    chain_id,
+    mode="adaptive",
+    llm_calls=0,
+    fallback_used=False,
+):
+    """
+    Execute a controlled chain exactly once and convert
+    the resulting chain result into the standardized
+    research-result structure.
+
+    This remains backward-compatible with the previous
+    public helper.
+    """
+
+    chain_result = execute_chain(
+        experiment_id,
+        chain_id,
+    )
+
+    return chain_result_to_research_result(
+        chain_result,
+        mode=mode,
+        llm_calls=llm_calls,
+        fallback_used=fallback_used,
     )

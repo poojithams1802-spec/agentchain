@@ -470,16 +470,21 @@ def test_phase2_analytics_returns_metrics_and_only_phase2_records(
         "timestamp": "2026-10-01T11:00:00+00:00",
     }
     phase2_record = {
-        "evaluation_type": "phase2_mitigation",
+        "evaluation_type": "phase2_condition",
+        "source": "phase2_condition_runner",
         "experiment_id": "EXP001",
         "mode": "adaptive",
+        "condition": "rule_based_fixed_mitigation",
+        "selection_correct": True,
         "mitigation_control": "tool_allowlist",
         "mitigation_selected": True,
         "mitigation_applied": True,
         "attack_success_before": True,
         "attack_success_after": False,
         "chain_disrupted": True,
+        "mitigation_validation": True,
         "residual_vulnerable_steps": [],
+        "llm_calls": 0,
     }
     fake_database.evaluation_results.insert_one(phase1_record)
     fake_database.evaluation_results.insert_one(phase2_record)
@@ -488,9 +493,20 @@ def test_phase2_analytics_returns_metrics_and_only_phase2_records(
 
     assert response.status_code == 200
     body = response.json()
-    assert "metrics" in body
-    assert body["metrics"]["adaptive"]["mitigation_selections"] == 1
-    assert "records" in body
+    assert set(body) == {"metrics", "records"}
+    assert body["metrics"] == {
+        "rule_based_fixed_mitigation": {
+            "experiment_count": 1,
+            "mitigation_selection_accuracy": 1.0,
+            "mitigation_application_success": 1.0,
+            "attack_success_rate_before": 1.0,
+            "attack_success_rate_after": 0.0,
+            "chain_disruption_rate": 1.0,
+            "mitigation_validation_rate": 1.0,
+            "residual_vulnerable_steps": [],
+            "llm_calls": 0,
+        }
+    }
     assert body["records"] == [phase2_record]
 
 
@@ -504,9 +520,7 @@ def test_phase2_analytics_without_records_returns_empty_list_and_default_metrics
     assert response.status_code == 200
     body = response.json()
     assert body["records"] == []
-    assert body["metrics"] == main.calculate_research_metrics(
-        {"experiments": []}
-    )
+    assert body["metrics"] == {}
 
 
 def test_phase1_route_smoke_regression(replay_context):

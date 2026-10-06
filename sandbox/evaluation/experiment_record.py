@@ -20,15 +20,24 @@ def record_experiment_result(
     attack_success_after=None,
     chain_disrupted=False,
     residual_vulnerable_steps=None,
-    mitigation_validation=False
+    mitigation_validation=False,
+    chain_id=None,
+    chain_name=None,
+    chain_steps=None,
+    chain_length=None,
+    validated_steps=None,
+    chain_validation_rate=None,
+    all_findings_reproduced=None,
+    chain_status=None
 ):
     """
     Convert an experiment's recorded results into
     the standardized research-result structure.
 
-    The mitigation-related parameters are optional so that
-    existing Phase 1/static/adaptive experiment records
-    remain backward compatible.
+    Phase 1 and Phase 2 parameters remain backward compatible.
+
+    Phase 3 chain parameters are optional and are forwarded
+    only when chain information is provided.
     """
 
     return create_research_result(
@@ -52,5 +61,15 @@ def record_experiment_result(
         attack_success_after=attack_success_after,
         chain_disrupted=chain_disrupted,
         residual_vulnerable_steps=residual_vulnerable_steps,
-        mitigation_validation=mitigation_validation
+        mitigation_validation=mitigation_validation,
+
+        # Phase 3 chain data
+        chain_id=chain_id,
+        chain_name=chain_name,
+        chain_steps=chain_steps,
+        chain_length=chain_length,
+        validated_steps=validated_steps,
+        chain_validation_rate=chain_validation_rate,
+        all_findings_reproduced=all_findings_reproduced,
+        chain_status=chain_status
     )

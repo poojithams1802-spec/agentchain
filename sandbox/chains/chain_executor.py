@@ -6,11 +6,13 @@ The executor is intentionally thin:
 - validates the chain definition
 - delegates actual execution/validation to ChainValidator
 - enriches the result with chain metadata
+- can convert a chain result into the standard research-result structure
 
 It does not duplicate sandbox or validation logic.
 """
 
 from ..validator.chain_validator import ChainValidator
+from ..evaluation.experiment_record import record_experiment_result
 from .chain_registry import get_chain
 
 
@@ -90,3 +92,86 @@ def execute_chain(experiment_id, chain_id):
         ],
         "error": validation_result.get("error"),
     }
+
+
+def execute_chain_as_research_result(
+    experiment_id,
+    chain_id,
+    mode="adaptive",
+    llm_calls=0,
+    fallback_used=False,
+):
+    """
+    Execute a controlled chain and convert its result into
+    the standardized research-result structure.
+
+    This is a Phase 3 integration helper.
+
+    The existing execute_chain() response remains unchanged.
+    """
+
+    chain_result = execute_chain(
+        experiment_id,
+        chain_id,
+    )
+
+    executed_tests = [
+        step["test"]
+        for step in chain_result.get("steps", [])
+    ]
+
+    findings = [
+        step["finding"]
+        for step in chain_result.get("steps", [])
+        if step.get("finding") is not None
+    ]
+
+    candidate_chains = []
+
+    if chain_id:
+        candidate_chains.append(chain_id)
+
+    validated_chains = []
+
+    if (
+        chain_result.get("status") == "validated"
+        and chain_result.get("all_findings_reproduced") is True
+    ):
+        validated_chains.append(chain_id)
+
+    return record_experiment_result(
+        experiment_id=experiment_id,
+        mode=mode,
+        executed_tests=executed_tests,
+        findings=findings,
+        candidate_chains=candidate_chains,
+        validated_chains=validated_chains,
+        average_chain_length=chain_result.get(
+            "chain_length",
+            0.0,
+        ),
+        validation_rate=chain_result.get(
+            "validation_rate",
+            0.0,
+        ),
+        execution_count=chain_result.get(
+            "total_steps",
+            0,
+        ),
+        llm_calls=llm_calls,
+        fallback_used=fallback_used,
+
+        # Phase 3 chain data
+        chain_id=chain_result.get("chain_id"),
+        chain_name=chain_result.get("name"),
+        chain_steps=executed_tests,
+        chain_length=chain_result.get("chain_length"),
+        validated_steps=chain_result.get("validated_steps"),
+        chain_validation_rate=chain_result.get(
+            "validation_rate"
+        ),
+        all_findings_reproduced=chain_result.get(
+            "all_findings_reproduced"
+        ),
+        chain_status=chain_result.get("status"),
+    )

@@ -17,7 +17,15 @@ def create_research_result(
     attack_success_after=None,
     chain_disrupted=False,
     residual_vulnerable_steps=None,
-    mitigation_validation=False
+    mitigation_validation=False,
+    chain_id=None,
+    chain_name=None,
+    chain_steps=None,
+    chain_length=None,
+    validated_steps=None,
+    chain_validation_rate=None,
+    all_findings_reproduced=None,
+    chain_status=None
 ):
     """
     Create a standardized research experiment record.
@@ -27,6 +35,9 @@ def create_research_result(
 
     Mitigation fields are optional and support Phase 2
     before/after replay evaluation.
+
+    Chain fields are optional and support Phase 3
+    multi-step attack-chain execution.
     """
 
     if mode not in {"static", "adaptive"}:
@@ -37,7 +48,7 @@ def create_research_result(
     if residual_vulnerable_steps is None:
         residual_vulnerable_steps = []
 
-    return {
+    result = {
         "experiment_id": experiment_id,
         "mode": mode,
         "executed_tests": executed_tests,
@@ -60,3 +71,43 @@ def create_research_result(
         "residual_vulnerable_steps": residual_vulnerable_steps,
         "mitigation_validation": mitigation_validation
     }
+
+    # ---------------------------------------------------------
+    # Phase 3 multi-step chain fields
+    #
+    # Add these only when a chain is actually being recorded.
+    # This keeps existing Phase 1/Phase 2 result structures
+    # backward compatible.
+    # ---------------------------------------------------------
+    if chain_id is not None:
+        if chain_steps is None:
+            chain_steps = []
+
+        result.update({
+            "chain_id": chain_id,
+            "chain_name": chain_name,
+            "chain_steps": list(chain_steps),
+            "chain_length": (
+                chain_length
+                if chain_length is not None
+                else len(chain_steps)
+            ),
+            "validated_steps": (
+                validated_steps
+                if validated_steps is not None
+                else 0
+            ),
+            "chain_validation_rate": (
+                chain_validation_rate
+                if chain_validation_rate is not None
+                else 0.0
+            ),
+            "all_findings_reproduced": (
+                all_findings_reproduced
+                if all_findings_reproduced is not None
+                else False
+            ),
+            "chain_status": chain_status
+        })
+
+    return result

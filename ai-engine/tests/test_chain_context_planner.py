@@ -48,7 +48,7 @@ def test_chain_context_is_extracted():
     assert context["validation_result"]["validation_rate"] == 1.0
 
 
-def test_chain_context_changes_candidate_relevance():
+def test_residual_chain_context_is_extracted():
     planner = AdaptivePlanner()
 
     planner_input = PlannerInput(

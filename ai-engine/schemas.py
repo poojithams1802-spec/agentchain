@@ -1,4 +1,5 @@
 from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -13,14 +14,64 @@ class Finding(BaseModel):
 
 
 class TestingBudget(BaseModel):
-    max_tests: int = Field(default=5, ge=0)
-    max_llm_calls: int = Field(default=3, ge=0)
-    max_time_seconds: float = Field(default=30.0, ge=0.0)
+    max_tests: int = Field(
+        default=5,
+        ge=0
+    )
+    max_llm_calls: int = Field(
+        default=3,
+        ge=0
+    )
+    max_time_seconds: float = Field(
+        default=30.0,
+        ge=0.0
+    )
+
 
 class BudgetUsed(BaseModel):
-    tests: int = Field(default=0, ge=0)
-    llm_calls: int = Field(default=0, ge=0)
-    time_seconds: float = Field(default=0.0, ge=0.0)
+    tests: int = Field(
+        default=0,
+        ge=0
+    )
+    llm_calls: int = Field(
+        default=0,
+        ge=0
+    )
+    time_seconds: float = Field(
+        default=0.0,
+        ge=0.0
+    )
+
+
+class AblationConfiguration(BaseModel):
+    """
+    One of the four controlled Phase 3 ablation configurations.
+
+    A: LLM only
+    B: LLM + RAG
+    C: LLM + attack-chain context
+    D: LLM + RAG + attack-chain context
+    """
+
+    config_id: Literal[
+        "A",
+        "B",
+        "C",
+        "D",
+    ]
+
+    name: str = Field(
+        min_length=1
+    )
+
+    use_rag: bool
+
+    use_chain_context: bool
+
+    description: str = Field(
+        min_length=1
+    )
+
 
 class PlannerInput(BaseModel):
     findings: list[Finding] = Field(
@@ -68,9 +119,14 @@ class PlannerDecision(BaseModel):
         le=1.0
     )
 
+
 class ExperimentRequest(BaseModel):
-    experiment_id: str = Field(min_length=1)
-    test: str = Field(min_length=1)
+    experiment_id: str = Field(
+        min_length=1
+    )
+    test: str = Field(
+        min_length=1
+    )
 
 
 class SandboxTestRequest(BaseModel):

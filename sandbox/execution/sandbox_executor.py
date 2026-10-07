@@ -13,6 +13,9 @@ ALLOWED_TESTS = {
     "file_operation_test",
     "context_manipulation_test",
     "privilege_propagation_test",
+    "unsafe_delegation_test",
+    "cross_agent_trust_test",
+    "tool_parameter_validation_test",
 }
 
 

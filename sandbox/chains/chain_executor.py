@@ -1,33 +1,34 @@
 """
 Phase 3 controlled multi-step chain executor.
 
-The executor is intentionally thin:
-- retrieves a registered chain
-- validates the chain definition
-- delegates actual execution/validation to ChainValidator
-- enriches the result with chain metadata
-- converts an already-produced chain result into a research result
-- aggregates execution-cost metadata
+Responsibilities:
+- retrieve a registered chain
+- validate and execute the chain
+- enrich results with chain metadata
+- aggregate execution-cost metadata
+- convert chain results into research results
 
-It does not duplicate sandbox or validation logic.
+The existing execution interface remains backward-compatible.
 """
 
 from ..validator.chain_validator import ChainValidator
-from ..evaluation.experiment_record import record_experiment_result
+from ..evaluation.experiment_record import (
+    record_experiment_result,
+)
 from .chain_registry import get_chain
 
 
-def execute_chain(experiment_id, chain_id):
+def execute_chain(
+    experiment_id,
+    chain_id,
+):
     """
     Execute a registered controlled attack chain.
-
-    Args:
-        experiment_id (str): Experiment identifier.
-        chain_id (str): Registered chain identifier.
-
-    Returns:
-        dict: Structured chain execution result.
     """
+
+    # =========================================================
+    # INPUT VALIDATION
+    # =========================================================
 
     if not experiment_id:
         return {
@@ -55,7 +56,13 @@ def execute_chain(experiment_id, chain_id):
             "error": "chain_id is required.",
         }
 
-    chain = get_chain(chain_id)
+    # =========================================================
+    # GET CHAIN
+    # =========================================================
+
+    chain = get_chain(
+        chain_id
+    )
 
     if chain is None:
         return {
@@ -67,24 +74,42 @@ def execute_chain(experiment_id, chain_id):
             "total_steps": 0,
             "validation_rate": 0.0,
             "steps": [],
-            "error": f"Unknown chain: {chain_id}",
+            "error": (
+                f"Unknown chain: {chain_id}"
+            ),
         }
 
-    validator = ChainValidator(experiment_id)
+    # =========================================================
+    # VALIDATE / EXECUTE
+    # =========================================================
 
-    validation_result = validator.validate_chain(
-        chain_id,
-        chain["steps"],
+    validator = ChainValidator(
+        experiment_id
     )
 
-    # ---------------------------------------------------------
-    # Aggregate Phase 3 execution-cost metadata.
-    # ---------------------------------------------------------
+    validation_result = (
+        validator.validate_chain(
+            chain_id,
+            chain["steps"],
+        )
+    )
 
-    step_results = validation_result["steps"]
+    # =========================================================
+    # EXECUTION COST
+    # =========================================================
+
+    step_results = validation_result[
+        "steps"
+    ]
 
     total_test_count = sum(
-        step.get("execution_cost", {}).get("test_count", 0)
+        step.get(
+            "execution_cost",
+            {},
+        ).get(
+            "test_count",
+            0,
+        )
         for step in step_results
         if isinstance(
             step.get("execution_cost"),
@@ -93,7 +118,10 @@ def execute_chain(experiment_id, chain_id):
     )
 
     total_execution_time_seconds = sum(
-        step.get("execution_cost", {}).get(
+        step.get(
+            "execution_cost",
+            {},
+        ).get(
             "execution_time_seconds",
             0.0,
         )
@@ -106,25 +134,72 @@ def execute_chain(experiment_id, chain_id):
 
     execution_cost = {
         "test_count": total_test_count,
-        "execution_time_seconds": total_execution_time_seconds,
+        "execution_time_seconds": (
+            total_execution_time_seconds
+        ),
     }
 
+    # =========================================================
+    # RETURN EXISTING + NEW P3 METADATA
+    # =========================================================
+
     return {
-        "status": validation_result["status"],
+        "status": validation_result[
+            "status"
+        ],
         "experiment_id": experiment_id,
         "chain_id": chain_id,
+
+        # Existing interface
         "name": chain["name"],
         "description": chain["description"],
-        "steps": validation_result["steps"],
-        "chain_length": validation_result["chain_length"],
-        "validated_steps": validation_result["validated_steps"],
-        "total_steps": validation_result["total_steps"],
-        "validation_rate": validation_result["validation_rate"],
-        "all_findings_reproduced": validation_result[
-            "all_findings_reproduced"
+        "steps": validation_result[
+            "steps"
         ],
+        "chain_length": validation_result[
+            "chain_length"
+        ],
+        "validated_steps": validation_result[
+            "validated_steps"
+        ],
+        "total_steps": validation_result[
+            "total_steps"
+        ],
+        "validation_rate": validation_result[
+            "validation_rate"
+        ],
+        "all_findings_reproduced": (
+            validation_result[
+                "all_findings_reproduced"
+            ]
+        ),
+
+        # New P3 metadata
+        "chain_name": chain.get(
+            "chain_name",
+            chain["name"],
+        ),
+        "ordered_steps": chain.get(
+            "ordered_steps",
+            chain["steps"],
+        ),
+        "vulnerability_ids": chain.get(
+            "vulnerability_ids",
+            [],
+        ),
+        "entry_condition": chain.get(
+            "entry_condition"
+        ),
+        "expected_goal": chain.get(
+            "expected_goal"
+        ),
+
+        # Phase 3 execution cost
         "execution_cost": execution_cost,
-        "error": validation_result.get("error"),
+
+        "error": validation_result.get(
+            "error"
+        ),
     }
 
 
@@ -135,25 +210,28 @@ def chain_result_to_research_result(
     fallback_used=False,
 ):
     """
-    Convert an already-produced chain execution result into
+    Convert an already-produced chain result into
     the standardized research-result structure.
 
-    Important:
-        This function does NOT execute the chain.
-
-    It is intended for callers such as P2 that already have
-    a chain_result and need to persist the standardized
-    research-result representation.
+    This function does NOT execute the chain.
     """
 
-    if not isinstance(chain_result, dict):
+    if not isinstance(
+        chain_result,
+        dict,
+    ):
         raise TypeError(
             "chain_result must be a dictionary."
         )
 
-    chain_id = chain_result.get("chain_id")
+    chain_id = chain_result.get(
+        "chain_id"
+    )
 
-    steps = chain_result.get("steps", [])
+    steps = chain_result.get(
+        "steps",
+        [],
+    )
 
     executed_tests = [
         step["test"]
@@ -170,18 +248,28 @@ def chain_result_to_research_result(
     candidate_chains = []
 
     if chain_id:
-        candidate_chains.append(chain_id)
+        candidate_chains.append(
+            chain_id
+        )
 
     validated_chains = []
 
     if (
-        chain_result.get("status") == "validated"
-        and chain_result.get("all_findings_reproduced") is True
+        chain_result.get("status")
+        == "validated"
+        and chain_result.get(
+            "all_findings_reproduced"
+        )
+        is True
     ):
-        validated_chains.append(chain_id)
+        validated_chains.append(
+            chain_id
+        )
 
     return record_experiment_result(
-        experiment_id=chain_result.get("experiment_id"),
+        experiment_id=chain_result.get(
+            "experiment_id"
+        ),
         mode=mode,
         executed_tests=executed_tests,
         findings=findings,
@@ -202,19 +290,31 @@ def chain_result_to_research_result(
         llm_calls=llm_calls,
         fallback_used=fallback_used,
 
-        # Phase 3 chain data
+        # Existing Phase 3 chain data
         chain_id=chain_id,
-        chain_name=chain_result.get("name"),
-        chain_steps=executed_tests,
-        chain_length=chain_result.get("chain_length"),
-        validated_steps=chain_result.get("validated_steps"),
+        chain_name=chain_result.get(
+            "chain_name",
+            chain_result.get("name"),
+        ),
+        chain_steps=chain_result.get(
+            "ordered_steps",
+            executed_tests,
+        ),
+        chain_length=chain_result.get(
+            "chain_length"
+        ),
+        validated_steps=chain_result.get(
+            "validated_steps"
+        ),
         chain_validation_rate=chain_result.get(
             "validation_rate"
         ),
         all_findings_reproduced=chain_result.get(
             "all_findings_reproduced"
         ),
-        chain_status=chain_result.get("status"),
+        chain_status=chain_result.get(
+            "status"
+        ),
     )
 
 
@@ -227,11 +327,7 @@ def execute_chain_as_research_result(
 ):
     """
     Execute a controlled chain exactly once and convert
-    the resulting chain result into the standardized
-    research-result structure.
-
-    This remains backward-compatible with the previous
-    public helper.
+    the result into the standardized research-result structure.
     """
 
     chain_result = execute_chain(

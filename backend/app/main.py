@@ -142,6 +142,8 @@ def create_experiment(payload: ExperimentCreate):
         "name": payload.name,
         "mode": payload.mode,
         "max_tests": payload.max_tests,
+        "testing_budget": payload.testing_budget,
+        "budget_used": 0,
         "status": "created",
     }
 
@@ -166,6 +168,8 @@ def get_experiments():
             "name": item["name"],
             "mode": item["mode"],
             "max_tests": item["max_tests"],
+            "testing_budget": item.get("testing_budget"),
+            "budget_used": item.get("budget_used", 0),
             "status": item["status"],
         }
         for item in experiments
@@ -192,6 +196,8 @@ def get_experiment(
         "name": experiment["name"],
         "mode": experiment["mode"],
         "max_tests": experiment["max_tests"],
+        "testing_budget": experiment.get("testing_budget"),
+        "budget_used": experiment.get("budget_used", 0),
         "status": experiment["status"],
     }
 

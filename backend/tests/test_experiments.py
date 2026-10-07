@@ -1,0 +1,159 @@
+import sys
+from copy import deepcopy
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+from fastapi.testclient import TestClient
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BACKEND_ROOT))
+
+planner_module = ModuleType("planner")
+planner_module.AdaptivePlanner = lambda: None
+selector_module = ModuleType("mitigation_selector")
+selector_module.MitigationSelector = object
+previous_modules = {
+    name: sys.modules.get(name)
+    for name in ("planner", "mitigation_selector")
+}
+sys.modules["planner"] = planner_module
+sys.modules["mitigation_selector"] = selector_module
+try:
+    from app import main
+finally:
+    for name, previous_module in previous_modules.items():
+        if previous_module is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = previous_module
+
+
+class FakeCollection:
+    def __init__(self):
+        self.documents = []
+
+    def count_documents(self, query):
+        return len(self.documents)
+
+    def insert_one(self, document):
+        self.documents.append(deepcopy(document))
+
+    def find(self, query=None):
+        return deepcopy(self.documents)
+
+    def find_one(self, query):
+        for document in self.documents:
+            if all(document.get(key) == value for key, value in query.items()):
+                return deepcopy(document)
+        return None
+
+
+class FakeDatabase:
+    def __init__(self):
+        self.experiments = FakeCollection()
+
+
+@pytest.fixture
+def experiment_client(monkeypatch):
+    database = FakeDatabase()
+    monkeypatch.setattr(main, "db", database)
+    return TestClient(main.app), database
+
+
+def create_payload(**overrides):
+    payload = {
+        "name": "Budget test",
+        "mode": "adaptive",
+        "max_tests": 5,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_create_experiment_persists_budget_and_initializes_usage(
+    experiment_client,
+):
+    client, database = experiment_client
+
+    response = client.post(
+        "/experiments",
+        json=create_payload(testing_budget=12),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "experiment_id": "EXP001",
+        "status": "created",
+    }
+    assert database.experiments.documents == [
+        {
+            "experiment_id": "EXP001",
+            "name": "Budget test",
+            "mode": "adaptive",
+            "max_tests": 5,
+            "testing_budget": 12,
+            "budget_used": 0,
+            "status": "created",
+        }
+    ]
+
+
+def test_create_experiment_without_budget_remains_backward_compatible(
+    experiment_client,
+):
+    client, database = experiment_client
+
+    response = client.post(
+        "/experiments",
+        json=create_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "experiment_id": "EXP001",
+        "status": "created",
+    }
+    assert database.experiments.documents[0]["testing_budget"] is None
+    assert database.experiments.documents[0]["budget_used"] == 0
+
+
+def test_experiment_retrieval_exposes_stored_budget_fields(
+    experiment_client,
+):
+    client, database = experiment_client
+    database.experiments.insert_one(
+        {
+            "experiment_id": "EXP001",
+            "name": "Budget test",
+            "mode": "adaptive",
+            "max_tests": 5,
+            "testing_budget": 12,
+            "budget_used": 3,
+            "status": "created",
+        }
+    )
+
+    detail_response = client.get("/experiments/EXP001")
+    list_response = client.get("/experiments")
+
+    assert detail_response.status_code == 200
+    assert detail_response.json()["testing_budget"] == 12
+    assert detail_response.json()["budget_used"] == 3
+    assert list_response.status_code == 200
+    assert list_response.json()[0]["testing_budget"] == 12
+    assert list_response.json()[0]["budget_used"] == 3
+
+
+def test_create_experiment_rejects_non_positive_testing_budget(
+    experiment_client,
+):
+    client, database = experiment_client
+
+    response = client.post(
+        "/experiments",
+        json=create_payload(testing_budget=0),
+    )
+
+    assert response.status_code == 422
+    assert database.experiments.documents == []

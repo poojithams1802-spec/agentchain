@@ -8,6 +8,7 @@ class ExperimentCreate(BaseModel):
     name: str = Field(..., min_length=1)
     mode: str = Field(..., min_length=1)
     max_tests: int = Field(..., gt=0)
+    testing_budget: int | None = Field(None, gt=0)
 
 
 class ChainExecutionRequest(BaseModel):

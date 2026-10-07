@@ -1,12 +1,20 @@
 from .vulnerabilities.v1_weak_permission import run_v1_scenario
 from .vulnerabilities.v2_unsafe_tool_access import run_v2_scenario
 from .vulnerabilities.v3_memory_validation import run_v3_scenario
-
-
+from .vulnerabilities.v4_prompt_injection import run_v4_scenario
+from .vulnerabilities.v5_indirect_prompt_injection import (
+    run_v5_scenario,
+)
+from .vulnerabilities.v6_sensitive_data_exposure import (
+    run_v6_scenario,
+)
 TEST_MAP = {
     "permission_test": run_v1_scenario,
     "tool_access_test": run_v2_scenario,
     "memory_access_test": run_v3_scenario,
+    "prompt_injection_test": run_v4_scenario,
+    "indirect_prompt_injection_test": run_v5_scenario,
+    "sensitive_data_test": run_v6_scenario,
 }
 
 

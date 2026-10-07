@@ -5,13 +5,19 @@ EXPECTED_FINDINGS = {
     "permission_test": "weak_permission_control",
     "tool_access_test": "unsafe_tool_access",
     "memory_access_test": "memory_validation_weakness",
+    "prompt_injection_test": "prompt_injection",
+    "indirect_prompt_injection_test": "indirect_prompt_injection",
+    "sensitive_data_test": "sensitive_data_exposure",
 }
-
 
 CHAIN_DEPENDENCIES = {
     "permission_test": [],
     "tool_access_test": ["permission_test"],
     "memory_access_test": ["tool_access_test"],
+    "prompt_injection_test": [],
+    "indirect_prompt_injection_test": [],
+    "sensitive_data_test": [],
+    
 }
 
 

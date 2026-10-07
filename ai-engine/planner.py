@@ -1201,8 +1201,14 @@ class AdaptivePlanner:
                 planner_input
             )
         else:
-            retrieved_knowledge = []
+            
             rag_topics = []
+
+        multi_agent_context = (
+            self.build_multi_agent_reasoning_context(
+                planner_input
+            )
+        )
 
         return {
             "ablation_configuration": config.model_dump(),
@@ -1237,6 +1243,7 @@ class AdaptivePlanner:
                 planner_input,
                 configuration=config,
             ),
+            "multi_agent_context": multi_agent_context,
         }
 
     def get_phase3_chain_combinations(self) -> list[dict[str, Any]]:
@@ -1456,6 +1463,110 @@ class AdaptivePlanner:
                 item["chain_id"],
             ),
         )
+
+    def get_multi_agent_context(
+        self,
+        planner_input: PlannerInput,
+    ) -> dict[str, Any]:
+        """
+        Extract the planner-side multi-agent context.
+
+        Agent execution, sandboxing, permission enforcement, and trust
+        validation remain outside the planner.
+        """
+
+        context = planner_input.multi_agent_context
+
+        return {
+            "enabled": context.enabled,
+            "agents": dict(context.agents),
+            "allowed_interactions": list(
+                context.allowed_interactions
+            ),
+            "trust_context": dict(context.trust_context),
+            "shared_memory_context": dict(
+                context.shared_memory_context
+            ),
+        }
+
+    def build_multi_agent_reasoning_context(
+        self,
+        planner_input: PlannerInput,
+    ) -> dict[str, Any]:
+        """
+        Build deterministic planner-side reasoning context for the
+        controlled Phase 3 multi-agent scenario.
+
+        The planner reasons about roles, permissions, trust, memory,
+        and allowed interactions. It does not execute agents.
+        """
+
+        context = self.get_multi_agent_context(
+            planner_input
+        )
+
+        if not context["enabled"]:
+            return {
+                "enabled": False,
+                "agents": {},
+                "allowed_interactions": [],
+                "trust_context": {},
+                "shared_memory_context": {},
+                "active_agents": [],
+                "interaction_count": 0,
+                "trust_risks": [],
+                "memory_risks": [],
+            }
+
+        agents = context["agents"]
+
+        trust_context = context["trust_context"]
+        shared_memory_context = context[
+            "shared_memory_context"
+        ]
+
+        trust_risks = []
+        memory_risks = []
+
+        if trust_context.get("untrusted_agents"):
+            trust_risks.append(
+                "untrusted_agent_context"
+            )
+
+        if trust_context.get("cross_agent_trust"):
+            trust_risks.append(
+                "cross_agent_trust_boundary"
+            )
+
+        if shared_memory_context.get(
+            "shared_memory_enabled"
+        ):
+            memory_risks.append(
+                "shared_memory_access"
+            )
+
+        if shared_memory_context.get(
+            "cross_agent_memory"
+        ):
+            memory_risks.append(
+                "cross_agent_memory_sharing"
+            )
+
+        return {
+            "enabled": True,
+            "agents": agents,
+            "allowed_interactions": context[
+                "allowed_interactions"
+            ],
+            "trust_context": trust_context,
+            "shared_memory_context": shared_memory_context,
+            "active_agents": list(agents.keys()),
+            "interaction_count": len(
+                context["allowed_interactions"]
+            ),
+            "trust_risks": trust_risks,
+            "memory_risks": memory_risks,
+        }
 
     def build_query(
         self,
@@ -2304,4 +2415,3 @@ Do not include additional explanation.
             "same_initial_state": True,
             "configurations": results,
         }
-

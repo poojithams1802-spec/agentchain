@@ -72,6 +72,32 @@ class AblationConfiguration(BaseModel):
         min_length=1
     )
 
+class MultiAgentContext(BaseModel):
+    """
+    Planner-side description of the controlled Phase 3 multi-agent context.
+
+    Agent execution, sandboxing, permission enforcement, and trust validation
+    remain outside the planner.
+    """
+
+    enabled: bool = False
+
+    agents: dict[str, dict[str, Any]] = Field(
+        default_factory=dict
+    )
+
+    allowed_interactions: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+
+    trust_context: dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    shared_memory_context: dict[str, Any] = Field(
+        default_factory=dict
+    )
+
 
 class PlannerInput(BaseModel):
     findings: list[Finding] = Field(
@@ -92,6 +118,10 @@ class PlannerInput(BaseModel):
 
     chain_state: dict[str, Any] = Field(
         default_factory=dict
+    )
+
+    multi_agent_context: MultiAgentContext = Field(
+        default_factory=MultiAgentContext
     )
 
     testing_budget: TestingBudget = Field(

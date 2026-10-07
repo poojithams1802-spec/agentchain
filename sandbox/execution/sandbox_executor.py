@@ -3,12 +3,15 @@ from time import perf_counter
 from ..test_runner import run_test
 from ..mitigation.mitigation_state import is_mitigation_active
 
-
 ALLOWED_TESTS = {
     "permission_test",
     "tool_access_test",
     "memory_access_test",
+    "prompt_injection_test",
+    "indirect_prompt_injection_test",
+    "sensitive_data_test",
 }
+
 
 
 # Maps each security test to its corresponding defensive control.
@@ -16,6 +19,7 @@ TEST_MITIGATION_MAP = {
     "permission_test": "authorization_gate",
     "tool_access_test": "tool_allowlist",
     "memory_access_test": "memory_validation",
+    "sensitive_data_test": "sensitive_data_exposure",
 }
 
 

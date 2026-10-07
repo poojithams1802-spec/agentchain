@@ -1489,6 +1489,203 @@ class AdaptivePlanner:
             ),
         }
 
+    def build_trust_delegation_reasoning(
+        self,
+        planner_input: PlannerInput,
+    ) -> dict[str, Any]:
+        """
+        Build deterministic planner-side trust and delegation reasoning.
+
+        This method evaluates controlled multi-agent context only. It does
+        not execute agents, grant permissions, perform delegation, or
+        validate sandbox behavior. P4 owns controlled execution and
+        validation; this method supplies reasoning signals to the planner.
+        """
+
+        context = self.get_multi_agent_context(
+            planner_input
+        )
+
+        if not context["enabled"]:
+            return {
+                "enabled": False,
+                "interaction_assessments": [],
+                "trust_risks": [],
+                "delegation_risks": [],
+                "security_signals": [],
+                "recommended_checks": [],
+            }
+
+        agents = context["agents"]
+        allowed_interactions = context["allowed_interactions"]
+        trust_context = context["trust_context"]
+        shared_memory_context = context["shared_memory_context"]
+
+        def _agent_name(value: Any) -> str:
+            return str(value or "").strip()
+
+        def _trust_value(agent: dict[str, Any]) -> str:
+            value = agent.get("trust_level", agent.get("trust", ""))
+            return str(value).strip().lower()
+
+        def _is_delegation(interaction: dict[str, Any]) -> bool:
+            action = str(
+                interaction.get("action", interaction.get("type", ""))
+            ).strip().lower()
+            return bool(interaction.get("delegation")) or action in {
+                "delegation",
+                "delegate",
+                "unsafe_delegation",
+                "tool_delegation",
+                "unauthorized_tool_delegation",
+            }
+
+        def _interaction_allowed(
+            interaction: dict[str, Any],
+            source_agent: dict[str, Any],
+        ) -> bool:
+            if "allowed" in interaction:
+                return bool(interaction["allowed"])
+
+            source_rules = source_agent.get("allowed_interactions", [])
+            if not source_rules:
+                return True
+
+            target = _agent_name(
+                interaction.get("to_agent", interaction.get("target_agent"))
+            )
+            action = str(
+                interaction.get("action", interaction.get("type", ""))
+            ).strip().lower()
+
+            for rule in source_rules:
+                if isinstance(rule, str):
+                    if rule.strip().lower() in {action, target}:
+                        return True
+                elif isinstance(rule, dict):
+                    rule_target = _agent_name(
+                        rule.get("to_agent", rule.get("target_agent"))
+                    )
+                    rule_action = str(
+                        rule.get("action", rule.get("type", ""))
+                    ).strip().lower()
+                    target_match = not rule_target or rule_target == target
+                    action_match = not rule_action or rule_action == action
+                    if target_match and action_match:
+                        return True
+
+            return False
+
+        interaction_assessments = []
+        trust_risks = []
+        delegation_risks = []
+        security_signals = []
+
+        if trust_context.get("untrusted_agents"):
+            trust_risks.append("untrusted_agent_context")
+            security_signals.append("untrusted_agent_context")
+
+        if trust_context.get("cross_agent_trust"):
+            trust_risks.append("cross_agent_trust_boundary")
+            security_signals.append("cross_agent_trust_boundary")
+
+        if shared_memory_context.get("cross_agent_memory"):
+            security_signals.append("cross_agent_context_leakage")
+
+        for interaction in allowed_interactions:
+            if not isinstance(interaction, dict):
+                continue
+
+            source = _agent_name(
+                interaction.get("from_agent", interaction.get("source_agent"))
+            )
+            target = _agent_name(
+                interaction.get("to_agent", interaction.get("target_agent"))
+            )
+            action = str(
+                interaction.get("action", interaction.get("type", "interaction"))
+            ).strip().lower()
+
+            source_data = agents.get(source, {})
+            target_data = agents.get(target, {})
+            source_trust = _trust_value(source_data)
+            target_trust = _trust_value(target_data)
+            is_delegation = _is_delegation(interaction)
+            is_allowed = _interaction_allowed(
+                interaction,
+                source_data,
+            )
+
+            risks = []
+
+            if not is_allowed:
+                risks.append("unauthorized_interaction")
+                security_signals.append("unauthorized_interaction")
+
+            if source_trust in {"untrusted", "low", "unknown"}:
+                risks.append("untrusted_source_agent")
+                if "untrusted_source_agent" not in trust_risks:
+                    trust_risks.append("untrusted_source_agent")
+
+            if is_delegation:
+                if not is_allowed:
+                    risks.append("unauthorized_delegation")
+                    delegation_risks.append("unauthorized_delegation")
+                    security_signals.append("unauthorized_delegation")
+                elif target_trust in {"untrusted", "low", "unknown"}:
+                    risks.append("delegation_to_low_trust_agent")
+                    delegation_risks.append("delegation_to_low_trust_agent")
+                    security_signals.append("privilege_propagation")
+
+                if interaction.get("privileged") or interaction.get("privilege_propagation"):
+                    risks.append("privilege_propagation")
+                    if "privilege_propagation" not in delegation_risks:
+                        delegation_risks.append("privilege_propagation")
+                    if "privilege_propagation" not in security_signals:
+                        security_signals.append("privilege_propagation")
+
+            assessment = {
+                "from_agent": source,
+                "to_agent": target,
+                "action": action,
+                "is_delegation": is_delegation,
+                "allowed": is_allowed,
+                "source_trust": source_trust,
+                "target_trust": target_trust,
+                "risks": risks,
+            }
+            interaction_assessments.append(assessment)
+
+        if shared_memory_context.get("shared_memory_enabled"):
+            security_signals.append("shared_memory_access")
+
+        if shared_memory_context.get("cross_agent_memory"):
+            security_signals.append("cross_agent_memory_sharing")
+
+        trust_risks = list(dict.fromkeys(trust_risks))
+        delegation_risks = list(dict.fromkeys(delegation_risks))
+        security_signals = list(dict.fromkeys(security_signals))
+
+        recommended_checks = []
+        if trust_risks or delegation_risks:
+            recommended_checks.append("permission_test")
+        if any(
+            assessment["is_delegation"]
+            for assessment in interaction_assessments
+        ):
+            recommended_checks.append("tool_access_test")
+        if shared_memory_context.get("cross_agent_memory"):
+            recommended_checks.append("memory_access_test")
+
+        return {
+            "enabled": True,
+            "interaction_assessments": interaction_assessments,
+            "trust_risks": trust_risks,
+            "delegation_risks": delegation_risks,
+            "security_signals": security_signals,
+            "recommended_checks": list(dict.fromkeys(recommended_checks)),
+        }
+
     def build_multi_agent_reasoning_context(
         self,
         planner_input: PlannerInput,
@@ -1524,6 +1721,12 @@ class AdaptivePlanner:
         shared_memory_context = context[
             "shared_memory_context"
         ]
+
+        trust_delegation_reasoning = (
+            self.build_trust_delegation_reasoning(
+                planner_input
+            )
+        )
 
         trust_risks = []
         memory_risks = []
@@ -1564,8 +1767,14 @@ class AdaptivePlanner:
             "interaction_count": len(
                 context["allowed_interactions"]
             ),
-            "trust_risks": trust_risks,
+            "trust_risks": list(
+                dict.fromkeys(
+                    trust_risks
+                    + trust_delegation_reasoning["trust_risks"]
+                )
+            ),
             "memory_risks": memory_risks,
+            "trust_delegation_reasoning": trust_delegation_reasoning,
         }
 
     def build_query(

@@ -509,6 +509,75 @@ def test_phase2_analytics_returns_metrics_and_only_phase2_records(
     }
     assert body["records"] == [phase2_record]
 
+def test_phase3_analytics_returns_metrics_and_only_phase3_records(
+    replay_context,
+):
+    client, fake_database, _ = replay_context
+
+    phase3_record = {
+        "evaluation_type": "phase3_chain",
+        "experiment_id": "EXP003",
+        "mode": "adaptive",
+        "executed_tests": [
+            "tool_access_test",
+            "memory_exposure_test",
+        ],
+        "findings": [
+            "unsafe_tool_access",
+            "memory_exposure",
+        ],
+        "candidate_chains": ["CHAIN-PHASE3"],
+        "validated_chains": ["CHAIN-PHASE3"],
+        "average_chain_length": 2.0,
+        "validation_rate": 1.0,
+        "execution_count": 2,
+        "llm_calls": 1,
+        "chain_id": "CHAIN-PHASE3",
+        "chain_name": "Tool-to-Memory Chain",
+        "chain_steps": [
+            "tool_access_test",
+            "memory_exposure_test",
+        ],
+        "chain_length": 2,
+        "validated_steps": 2,
+        "chain_validation_rate": 1.0,
+        "all_findings_reproduced": True,
+        "chain_status": "validated",
+        "timestamp": "2026-10-07T10:00:00+00:00",
+    }
+
+    phase2_record = {
+        "evaluation_type": "phase2_condition",
+        "source": "phase2_condition_runner",
+        "experiment_id": "EXP002",
+    }
+
+    fake_database.evaluation_results.insert_one(phase3_record)
+    fake_database.evaluation_results.insert_one(phase2_record)
+
+    response = client.get("/phase3/analytics")
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert set(body) == {"metrics", "records"}
+    assert body["records"] == [phase3_record]
+
+    adaptive_metrics = body["metrics"]["adaptive"]
+
+    assert adaptive_metrics["experiments"] == 1
+    assert adaptive_metrics["total_tests"] == 2
+    assert adaptive_metrics["total_findings"] == 2
+    assert adaptive_metrics["candidate_chains"] == 1
+    assert adaptive_metrics["validated_chains"] == 1
+    assert adaptive_metrics["average_chain_length"] == 2.0
+    assert adaptive_metrics["validation_rate"] == 1.0
+    assert adaptive_metrics["execution_count"] == 2
+    assert adaptive_metrics["llm_calls"] == 1
+
+    assert body["metrics"]["static"]["experiments"] == 0
+
 
 def test_phase2_analytics_without_records_returns_empty_list_and_default_metrics(
     replay_context,

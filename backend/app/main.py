@@ -1269,6 +1269,23 @@ def get_phase2_analytics():
         "records": records,
     }
 
+@app.get("/phase3/analytics")
+def get_phase3_analytics():
+    records = list(
+        db.evaluation_results.find(
+            {
+                "evaluation_type": "phase3_chain",
+            },
+            {"_id": 0},
+        )
+    )
+
+    return {
+        "metrics": calculate_research_metrics(
+            {"experiments": records}
+        ),
+        "records": records,
+    }
 
 @app.post("/phase2/evaluation/run")
 def run_phase2_evaluation():

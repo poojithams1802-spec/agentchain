@@ -144,6 +144,8 @@ def create_experiment(payload: ExperimentCreate):
         "max_tests": payload.max_tests,
         "testing_budget": payload.testing_budget,
         "budget_used": 0,
+        "selected_tests": [],
+        "executed_tests": [],
         "status": "created",
     }
 
@@ -170,6 +172,8 @@ def get_experiments():
             "max_tests": item["max_tests"],
             "testing_budget": item.get("testing_budget"),
             "budget_used": item.get("budget_used", 0),
+            "selected_tests": item.get("selected_tests", []),
+            "executed_tests": item.get("executed_tests", []),
             "status": item["status"],
         }
         for item in experiments
@@ -198,6 +202,8 @@ def get_experiment(
         "max_tests": experiment["max_tests"],
         "testing_budget": experiment.get("testing_budget"),
         "budget_used": experiment.get("budget_used", 0),
+        "selected_tests": experiment.get("selected_tests", []),
+        "executed_tests": experiment.get("executed_tests", []),
         "status": experiment["status"],
     }
 
@@ -813,7 +819,13 @@ def start_experiment(
 
     db.experiments.update_one(
         {"experiment_id": experiment_id},
-        {"$set": {"status": "running"}},
+        {
+            "$set": {
+                "status": "running",
+                "selected_tests": [],
+                "executed_tests": [],
+            }
+        },
     )
 
     add_experiment_log(
@@ -833,6 +845,7 @@ def start_experiment(
 
     previous_tests = []
     planner_findings = []
+    selected_tests = []
     executed_tests = []
     sandbox_results = []
 
@@ -863,7 +876,20 @@ def start_experiment(
             planner_input
         )
 
-        selected_test = decision.selected_test
+        planner_selected_test = decision.selected_test
+        selected_tests.append(planner_selected_test)
+
+        db.experiments.update_one(
+            {"experiment_id": experiment_id},
+            {
+                "$set": {
+                    "selected_tests": selected_tests,
+                    "executed_tests": executed_tests,
+                }
+            },
+        )
+
+        selected_test = planner_selected_test
 
         # ----------------------------------------
         # Prevent duplicate test execution
@@ -943,8 +969,16 @@ def start_experiment(
             selected_test
         )
 
-        executed_tests.append(
-            selected_test
+        executed_tests.append(selected_test)
+
+        db.experiments.update_one(
+            {"experiment_id": experiment_id},
+            {
+                "$set": {
+                    "selected_tests": selected_tests,
+                    "executed_tests": executed_tests,
+                }
+            },
         )
 
         # Remove executed test
@@ -1028,7 +1062,13 @@ def start_experiment(
 
     db.experiments.update_one(
         {"experiment_id": experiment_id},
-        {"$set": {"status": "completed"}},
+        {
+            "$set": {
+                "status": "completed",
+                "selected_tests": selected_tests,
+                "executed_tests": executed_tests,
+            }
+        },
     )
 
     add_experiment_log(

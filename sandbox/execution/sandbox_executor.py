@@ -10,6 +10,9 @@ ALLOWED_TESTS = {
     "prompt_injection_test",
     "indirect_prompt_injection_test",
     "sensitive_data_test",
+    "file_operation_test",
+    "context_manipulation_test",
+    "privilege_propagation_test",
 }
 
 

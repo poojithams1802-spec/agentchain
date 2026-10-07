@@ -8,6 +8,15 @@ from .vulnerabilities.v5_indirect_prompt_injection import (
 from .vulnerabilities.v6_sensitive_data_exposure import (
     run_v6_scenario,
 )
+from .vulnerabilities.v7_unsafe_file_operation import (
+    run_v7_scenario,
+)
+from .vulnerabilities.v8_context_manipulation import (
+    run_v8_scenario,
+)
+from .vulnerabilities.v9_privilege_propagation import (
+    run_v9_scenario,
+)
 TEST_MAP = {
     "permission_test": run_v1_scenario,
     "tool_access_test": run_v2_scenario,
@@ -15,6 +24,9 @@ TEST_MAP = {
     "prompt_injection_test": run_v4_scenario,
     "indirect_prompt_injection_test": run_v5_scenario,
     "sensitive_data_test": run_v6_scenario,
+    "file_operation_test": run_v7_scenario,
+    "context_manipulation_test": run_v8_scenario,
+    "privilege_propagation_test": run_v9_scenario,
 }
 
 

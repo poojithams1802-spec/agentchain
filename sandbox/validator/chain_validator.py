@@ -8,6 +8,9 @@ EXPECTED_FINDINGS = {
     "prompt_injection_test": "prompt_injection",
     "indirect_prompt_injection_test": "indirect_prompt_injection",
     "sensitive_data_test": "sensitive_data_exposure",
+    "file_operation_test": "unsafe_file_operation",
+    "context_manipulation_test": "context_manipulation",
+    "privilege_propagation_test": "privilege_propagation",
 }
 
 CHAIN_DEPENDENCIES = {
@@ -17,7 +20,9 @@ CHAIN_DEPENDENCIES = {
     "prompt_injection_test": [],
     "indirect_prompt_injection_test": [],
     "sensitive_data_test": [],
-    
+    "file_operation_test": [],
+    "context_manipulation_test": [],
+    "privilege_propagation_test": [],
 }
 
 

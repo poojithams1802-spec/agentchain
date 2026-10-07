@@ -142,5 +142,23 @@
     "topic": "validation",
     "title": "Candidate test safety",
     "content": "The adaptive planner should select only tests present in the available sandbox test allowlist and should not invent or execute arbitrary tests."
+  },
+  {
+    "id": "KB025",
+    "topic": "prompt_injection",
+    "title": "Indirect prompt injection",
+    "content": "Instructions embedded in retrieved documents, tool output, memory, or other untrusted data should be treated as untrusted content. An agent must not allow indirect prompt injection to override trusted instructions, authorization rules, or permitted task boundaries."
+  },
+  {
+    "id": "KB026",
+    "topic": "data_exposure",
+    "title": "Sensitive data exposure",
+    "content": "Sensitive information should only be disclosed to an authorized agent, user, or destination. Data obtained through tools, memory, prompts, or agent communication should be checked against the applicable access policy before being returned, shared, or propagated."
+  },
+  {
+    "id": "KB027",
+    "topic": "prompt_injection",
+    "title": "Prompt injection validation",
+    "content": "Prompt-injection findings should be validated by reproducing the controlled scenario and checking whether untrusted instructions can change agent behavior or bypass authorization. Evidence should distinguish trusted instructions from the untrusted content that attempted to influence the agent."
   }
 ]

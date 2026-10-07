@@ -9,6 +9,9 @@ class ExperimentCreate(BaseModel):
     mode: str = Field(..., min_length=1)
     max_tests: int = Field(..., gt=0)
     testing_budget: int | None = Field(None, gt=0)
+    scenario_id: str | None = Field(None, min_length=1)
+    scenario_name: str | None = Field(None, min_length=1)
+    vulnerability_ids: list[str] = Field(default_factory=list)
 
 
 class ChainExecutionRequest(BaseModel):

@@ -93,6 +93,9 @@ def test_create_experiment_persists_budget_and_initializes_usage(
             "mode": "adaptive",
             "max_tests": 5,
             "testing_budget": 12,
+            "scenario_id": None,
+            "scenario_name": None,
+            "vulnerability_ids": [],
             "budget_used": 0,
             "selected_tests": [],
             "executed_tests": [],
@@ -186,3 +189,79 @@ def test_create_experiment_rejects_non_positive_testing_budget(
 
     assert response.status_code == 422
     assert database.experiments.documents == []
+
+
+def test_create_experiment_persists_scenario_metadata(
+    experiment_client,
+):
+    client, database = experiment_client
+
+    response = client.post(
+        "/experiments",
+        json=create_payload(
+            scenario_id="SCENARIO_V04_V06",
+            scenario_name="Prompt and Data Exposure Scenario",
+            vulnerability_ids=["V04", "V05", "V06"],
+        ),
+    )
+
+    assert response.status_code == 200
+
+    experiment = database.experiments.documents[0]
+
+    assert experiment["scenario_id"] == "SCENARIO_V04_V06"
+    assert experiment["scenario_name"] == (
+        "Prompt and Data Exposure Scenario"
+    )
+    assert experiment["vulnerability_ids"] == [
+        "V04",
+        "V05",
+        "V06",
+    ]
+
+def test_experiment_retrieval_exposes_scenario_metadata(
+    experiment_client,
+):
+    client, database = experiment_client
+
+    database.experiments.insert_one(
+        {
+            "experiment_id": "EXP001",
+            "name": "Scenario experiment",
+            "mode": "adaptive",
+            "max_tests": 5,
+            "testing_budget": 10,
+            "scenario_id": "SCENARIO_V04_V06",
+            "scenario_name": "Prompt and Data Exposure Scenario",
+            "vulnerability_ids": ["V04", "V05", "V06"],
+            "budget_used": 0,
+            "selected_tests": [],
+            "executed_tests": [],
+            "status": "created",
+        }
+    )
+
+    detail_response = client.get("/experiments/EXP001")
+    list_response = client.get("/experiments")
+
+    assert detail_response.status_code == 200
+    assert detail_response.json()["scenario_id"] == "SCENARIO_V04_V06"
+    assert detail_response.json()["scenario_name"] == (
+        "Prompt and Data Exposure Scenario"
+    )
+    assert detail_response.json()["vulnerability_ids"] == [
+        "V04",
+        "V05",
+        "V06",
+    ]
+
+    assert list_response.status_code == 200
+    assert list_response.json()[0]["scenario_id"] == "SCENARIO_V04_V06"
+    assert list_response.json()[0]["scenario_name"] == (
+        "Prompt and Data Exposure Scenario"
+    )
+    assert list_response.json()[0]["vulnerability_ids"] == [
+        "V04",
+        "V05",
+        "V06",
+    ]

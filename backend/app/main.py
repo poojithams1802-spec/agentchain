@@ -21,6 +21,7 @@ from app.schemas import (
     MitigationSelectionRequest,
 )
 import app.mitigation_repository as mitigation_repository
+from app.scenario_config import get_all_scenarios, get_scenario
 
 # Load environment variables
 load_dotenv("backend/.env")
@@ -127,6 +128,27 @@ def add_attack_chain(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+@app.get("/scenarios")
+def list_scenarios():
+    """Return all controlled Phase 3 scenario configurations."""
+    return {
+        "scenarios": get_all_scenarios()
+    }
+
+
+@app.get("/scenarios/{scenario_id}")
+def get_scenario_config(scenario_id: str):
+    """Return one controlled Phase 3 scenario configuration."""
+    scenario = get_scenario(scenario_id)
+
+    if scenario is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Scenario not found: {scenario_id}",
+        )
+
+    return scenario
 
 
 @app.post("/experiments")

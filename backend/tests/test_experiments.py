@@ -265,3 +265,66 @@ def test_experiment_retrieval_exposes_scenario_metadata(
         "V05",
         "V06",
     ]
+
+def test_list_scenarios_returns_registered_chain_scenarios(
+    experiment_client,
+):
+    client, _ = experiment_client
+
+    response = client.get("/scenarios")
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert set(body) == {"scenarios"}
+    assert len(body["scenarios"]) == 2
+
+    scenario_ids = {
+        scenario["scenario_id"]
+        for scenario in body["scenarios"]
+    }
+
+    assert scenario_ids == {
+        "CHAIN-AUTH-TOOL",
+        "CHAIN-AUTH-TOOL-MEM",
+    }
+
+
+def test_get_scenario_returns_registered_chain_configuration(
+    experiment_client,
+):
+    client, _ = experiment_client
+
+    response = client.get("/scenarios/CHAIN-AUTH-TOOL")
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "scenario_id": "CHAIN-AUTH-TOOL",
+        "scenario_name": "Authorization to Tool Access",
+        "description": (
+            "A two-step controlled chain where a weak authorization "
+            "condition precedes unsafe tool access."
+        ),
+        "chain_ids": [
+            "CHAIN-AUTH-TOOL",
+        ],
+        "steps": [
+            "permission_test",
+            "tool_access_test",
+        ],
+    }
+
+
+def test_get_unknown_scenario_returns_404(
+    experiment_client,
+):
+    client, _ = experiment_client
+
+    response = client.get("/scenarios/UNKNOWN-SCENARIO")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Scenario not found: UNKNOWN-SCENARIO"
+    }

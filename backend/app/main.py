@@ -19,9 +19,11 @@ from app.schemas import (
     MitigationReplayRequest,
     MitigationResultResponse,
     MitigationSelectionRequest,
+    AblationResultCreate,
 )
 import app.mitigation_repository as mitigation_repository
 from app.scenario_config import get_all_scenarios, get_scenario
+from app.ablation_persistence import persist_ablation_result
 
 # Load environment variables
 load_dotenv("backend/.env")
@@ -1307,6 +1309,35 @@ def get_phase3_analytics():
             {"experiments": records}
         ),
         "records": records,
+    }
+
+@app.post("/phase3/ablation/results")
+def create_phase3_ablation_result(payload: AblationResultCreate):
+    result = persist_ablation_result(
+        payload.model_dump(),
+        db.evaluation_results,
+    )
+    return {
+        "ablation_run_id": result["ablation_run_id"],
+        "experiment_id": result["experiment_id"],
+        "configuration": result["configuration"],
+        "status": result["status"],
+    }
+
+
+@app.get("/phase3/ablation/results")
+def get_phase3_ablation_results():
+    records = list(
+        db.evaluation_results.find(
+            {
+                "evaluation_type": "phase3_ablation",
+            },
+            {"_id": 0},
+        )
+    )
+
+    return {
+        "results": records,
     }
 
 @app.post("/phase2/evaluation/run")

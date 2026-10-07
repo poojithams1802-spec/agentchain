@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -98,3 +98,42 @@ class MitigationResultResponse(BaseModel):
     application: ControlApplicationResult
     replay: BeforeAfterReplayResult
     disruption: ChainDisruptionResult
+
+class AblationResultCreate(BaseModel):
+    experiment_id: str = Field(..., min_length=1)
+
+    configuration: Literal[
+        "llm_only",
+        "llm_rag",
+        "llm_chain_context",
+        "llm_rag_chain_context",
+    ]
+
+    status: str = Field(..., min_length=1)
+
+    selected_tests: list[str] = Field(default_factory=list)
+    tests_used: int = Field(..., ge=0)
+
+    findings: list[str] = Field(default_factory=list)
+    finding_count: int = Field(..., ge=0)
+
+    llm_calls: int = Field(..., ge=0)
+    llm_calls_used: int = Field(..., ge=0)
+    fallback_used: bool
+
+    budget_used: int = Field(..., ge=0)
+    budget_remaining: int = Field(..., ge=0)
+
+    execution_success: bool
+    execution_time_seconds: float = Field(..., ge=0)
+
+    planner_decisions: list[dict] = Field(default_factory=list)
+
+    selection_accuracy: float | None = Field(None, ge=0, le=1)
+    chain_discovery_rate: float | None = Field(None, ge=0, le=1)
+    mitigation_success: float | None = Field(None, ge=0, le=1)
+    chain_disruption: float | None = Field(None, ge=0, le=1)
+    tests_required: int | None = Field(None, ge=0)
+    latency: float | None = Field(None, ge=0)
+    validation_rate: float | None = Field(None, ge=0, le=1)
+    residual_vulnerable_steps: int | None = Field(None, ge=0)

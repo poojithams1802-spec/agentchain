@@ -94,6 +94,8 @@ def test_create_experiment_persists_budget_and_initializes_usage(
             "max_tests": 5,
             "testing_budget": 12,
             "budget_used": 0,
+            "selected_tests": [],
+            "executed_tests": [],
             "status": "created",
         }
     ]
@@ -116,6 +118,8 @@ def test_create_experiment_without_budget_remains_backward_compatible(
     }
     assert database.experiments.documents[0]["testing_budget"] is None
     assert database.experiments.documents[0]["budget_used"] == 0
+    assert database.experiments.documents[0]["selected_tests"] == []
+    assert database.experiments.documents[0]["executed_tests"] == []
 
 
 def test_experiment_retrieval_exposes_stored_budget_fields(
@@ -143,6 +147,31 @@ def test_experiment_retrieval_exposes_stored_budget_fields(
     assert list_response.status_code == 200
     assert list_response.json()[0]["testing_budget"] == 12
     assert list_response.json()[0]["budget_used"] == 3
+
+
+def test_experiment_retrieval_defaults_missing_test_histories(
+    experiment_client,
+):
+    client, database = experiment_client
+    database.experiments.insert_one(
+        {
+            "experiment_id": "EXP001",
+            "name": "Legacy experiment",
+            "mode": "adaptive",
+            "max_tests": 3,
+            "status": "completed",
+        }
+    )
+
+    detail_response = client.get("/experiments/EXP001")
+    list_response = client.get("/experiments")
+
+    assert detail_response.status_code == 200
+    assert detail_response.json()["selected_tests"] == []
+    assert detail_response.json()["executed_tests"] == []
+    assert list_response.status_code == 200
+    assert list_response.json()[0]["selected_tests"] == []
+    assert list_response.json()[0]["executed_tests"] == []
 
 
 def test_create_experiment_rejects_non_positive_testing_budget(

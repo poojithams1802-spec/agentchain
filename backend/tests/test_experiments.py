@@ -39,8 +39,32 @@ class FakeCollection:
     def insert_one(self, document):
         self.documents.append(deepcopy(document))
 
-    def find(self, query=None):
-        return deepcopy(self.documents)
+    def find(self, query=None, projection=None):
+        if query is None:
+            query = {}
+
+        matching_documents = [
+            document
+            for document in self.documents
+            if all(
+                document.get(key) == value
+                for key, value in query.items()
+            )
+        ]
+
+        if projection:
+            return deepcopy(
+                [
+                    {
+                        key: value
+                        for key, value in document.items()
+                        if key not in projection or projection[key] != 0
+                    }
+                    for document in matching_documents
+                ]
+            )
+
+        return deepcopy(matching_documents)
 
     def find_one(self, query):
         for document in self.documents:
@@ -52,6 +76,7 @@ class FakeCollection:
 class FakeDatabase:
     def __init__(self):
         self.experiments = FakeCollection()
+        self.evaluation_results = FakeCollection()
 
 
 @pytest.fixture
@@ -327,4 +352,114 @@ def test_get_unknown_scenario_returns_404(
     assert response.status_code == 404
     assert response.json() == {
         "detail": "Scenario not found: UNKNOWN-SCENARIO"
+    }
+
+def test_create_phase3_ablation_result_persists_correct_configuration_and_metrics(
+    experiment_client,
+):
+    client, database = experiment_client
+
+    payload = {
+        "experiment_id": "EXP010",
+        "configuration": "llm_rag_chain_context",
+        "status": "completed",
+        "selected_tests": [
+            "permission_test",
+            "tool_access_test",
+        ],
+        "tests_used": 2,
+        "findings": [
+            "unsafe_permission",
+        ],
+        "finding_count": 1,
+        "llm_calls": 2,
+        "llm_calls_used": 2,
+        "fallback_used": False,
+        "budget_used": 2,
+        "budget_remaining": 1,
+        "execution_success": True,
+        "execution_time_seconds": 1.25,
+        "planner_decisions": [
+            {
+                "test": "permission_test",
+                "decision": "selected",
+            }
+        ],
+        "selection_accuracy": 1.0,
+        "chain_discovery_rate": 1.0,
+        "mitigation_success": 1.0,
+        "chain_disruption": 1.0,
+        "tests_required": 2,
+        "latency": 1.25,
+        "validation_rate": 1.0,
+        "residual_vulnerable_steps": 0,
+    }
+
+    response = client.post(
+        "/phase3/ablation/results",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ablation_run_id": "ABL001",
+        "experiment_id": "EXP010",
+        "configuration": "llm_rag_chain_context",
+        "status": "completed",
+    }
+
+    assert len(database.evaluation_results.documents) == 1
+
+    persisted = database.evaluation_results.documents[0]
+
+    assert persisted["ablation_run_id"] == "ABL001"
+    assert persisted["evaluation_type"] == "phase3_ablation"
+    assert persisted["experiment_id"] == "EXP010"
+    assert persisted["configuration"] == "llm_rag_chain_context"
+
+    assert persisted["selection_accuracy"] == 1.0
+    assert persisted["chain_discovery_rate"] == 1.0
+    assert persisted["mitigation_success"] == 1.0
+    assert persisted["chain_disruption"] == 1.0
+    assert persisted["tests_required"] == 2
+    assert persisted["latency"] == 1.25
+    assert persisted["validation_rate"] == 1.0
+    assert persisted["residual_vulnerable_steps"] == 0
+
+
+def test_get_phase3_ablation_results_returns_only_ablation_records(
+    experiment_client,
+):
+    client, database = experiment_client
+
+    database.evaluation_results.insert_one(
+        {
+            "evaluation_type": "phase2_mitigation",
+            "experiment_id": "EXP001",
+        }
+    )
+
+    database.evaluation_results.insert_one(
+        {
+            "evaluation_type": "phase3_ablation",
+            "ablation_run_id": "ABL001",
+            "experiment_id": "EXP010",
+            "configuration": "llm_only",
+            "status": "completed",
+        }
+    )
+
+    response = client.get("/phase3/ablation/results")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "results": [
+            {
+                "evaluation_type": "phase3_ablation",
+                "ablation_run_id": "ABL001",
+                "experiment_id": "EXP010",
+                "configuration": "llm_only",
+                "status": "completed",
+            }
+        ]
     }

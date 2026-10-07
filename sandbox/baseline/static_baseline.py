@@ -27,13 +27,16 @@ def run_static_baseline(experiment_id):
             "total_findings": 0,
             "average_confidence": 0.0,
             "test_sequence": [],
+            "execution_cost": {
+                "test_count": 0,
+                "execution_time_seconds": 0.0,
+            },
             "error": "experiment_id is required."
         }
 
     results = []
 
     for test_name in STATIC_TEST_SEQUENCE:
-
         result = execute_sandbox_test(
             experiment_id,
             test_name
@@ -60,6 +63,20 @@ def run_static_baseline(experiment_id):
         else 0.0
     )
 
+    # Aggregate execution cost from all executed tests.
+    total_execution_time = sum(
+        result.get("execution_cost", {}).get(
+            "execution_time_seconds", 0.0
+        )
+        for result in results
+        if isinstance(result.get("execution_cost"), dict)
+    )
+
+    execution_cost = {
+        "test_count": len(results),
+        "execution_time_seconds": total_execution_time,
+    }
+
     return {
         "status": "completed",
         "experiment_id": experiment_id,
@@ -68,8 +85,11 @@ def run_static_baseline(experiment_id):
         "total_tests": len(results),
         "total_findings": len(findings),
         "average_confidence": average_confidence,
-        "test_sequence": STATIC_TEST_SEQUENCE.copy()
+        "test_sequence": STATIC_TEST_SEQUENCE.copy(),
+        "execution_cost": execution_cost,
     }
+
+
 def validate_static_chain(experiment_id, chain_id):
     """
     Execute the static baseline and validate the resulting

@@ -6,7 +6,8 @@ def create_evaluation_result(
     candidate_chains,
     validated_chains,
     average_chain_length,
-    validation_rate
+    validation_rate,
+    execution_cost=None,
 ):
     """
     Create a standardized research evaluation result.
@@ -20,7 +21,7 @@ def create_evaluation_result(
             "mode must be either 'static' or 'adaptive'"
         )
 
-    return {
+    result = {
         "mode": mode,
         "experiment_id": experiment_id,
         "total_tests": total_tests,
@@ -28,5 +29,11 @@ def create_evaluation_result(
         "candidate_chains": candidate_chains,
         "validated_chains": validated_chains,
         "average_chain_length": average_chain_length,
-        "validation_rate": validation_rate
+        "validation_rate": validation_rate,
     }
+
+    # Preserve backward compatibility.
+    if execution_cost is not None:
+        result["execution_cost"] = execution_cost
+
+    return result

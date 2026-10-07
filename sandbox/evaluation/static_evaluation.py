@@ -41,7 +41,8 @@ def run_static_evaluation(experiment_id, chain_id):
         candidate_chains=candidate_chains,
         validated_chains=validated_chains,
         average_chain_length=validation["chain_length"],
-        validation_rate=validation["validation_rate"]
+        validation_rate=validation["validation_rate"],
+        execution_cost=baseline.get("execution_cost"),
     )
 
     return {

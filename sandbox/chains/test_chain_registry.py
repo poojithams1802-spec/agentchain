@@ -128,7 +128,28 @@ class TestChainRegistry(unittest.TestCase):
             fetched["steps"],
             ["permission_test"],
         )
+    def test_validator_first_import_has_no_cycle(self):
+        """The validator must import cleanly before the chain executor."""
+        import subprocess
+        import sys
 
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from sandbox.validator.chain_validator import ChainValidator; "
+                    "from sandbox.chains.chain_executor import execute_chain; "
+                    "print(ChainValidator.__name__, execute_chain.__name__)"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("ChainValidator execute_chain", result.stdout)
 
 if __name__ == "__main__":
     unittest.main()

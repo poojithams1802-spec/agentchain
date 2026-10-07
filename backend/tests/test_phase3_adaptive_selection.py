@@ -85,20 +85,39 @@ def test_start_persists_planner_selection_and_final_execution(
                 "steps": steps,
             }
 
-    def fake_execute_sandbox_test(experiment_id, test):
+    def fake_execute_selected_test(experiment_id, test):
         executed_tests.append(test)
         return {
-            "test": test,
-            "finding": f"{test}_finding",
-            "severity": "low",
-            "evidence": "mock evidence",
-            "confidence": 0.9,
+            "status": "completed",
+            "experiment_id": experiment_id,
+            "selected_test": test,
+            "validation": {
+                "valid": True,
+                "selected_test": test,
+                "error": None,
+            },
+            "executed": True,
+            "result": {
+                "test": test,
+                "finding": f"{test}_finding",
+                "severity": "low",
+                "evidence": "mock evidence",
+                "confidence": 0.9,
+            },
+            "execution_cost": {
+                "test_count": 1,
+                "execution_time_seconds": 0.01,
+            },
         }
 
     monkeypatch.setattr(main, "db", database)
     monkeypatch.setattr(main, "planner", FakePlanner())
     monkeypatch.setattr(main, "ChainValidator", FakeValidator)
-    monkeypatch.setattr(main, "execute_sandbox_test", fake_execute_sandbox_test)
+    monkeypatch.setattr(
+        main,
+        "execute_selected_test",
+        fake_execute_selected_test,
+    )
     monkeypatch.setattr(main, "add_experiment_log", lambda *args: None)
     monkeypatch.setattr(main, "add_experiment_finding", lambda **kwargs: None)
     monkeypatch.setattr(main, "add_attack_chain", lambda **kwargs: "CHAIN001")

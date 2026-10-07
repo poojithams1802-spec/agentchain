@@ -55,7 +55,7 @@ from sandbox.evaluation.mitigation_evaluation import (
 from sandbox.evaluation.phase2_runner import run_all_phase2_experiments
 from sandbox.evaluation.phase2_metrics import calculate_phase2_metrics
 from sandbox.evaluation.research_metrics import calculate_research_metrics
-from sandbox.execution.sandbox_executor import execute_sandbox_test
+from sandbox.execution.adaptive_test_executor import execute_selected_test
 from sandbox.validator.chain_validator import ChainValidator
 from app.phase2_persistence import persist_phase2_condition_records
 from app.phase3_persistence import persist_phase3_chain_result
@@ -108,7 +108,6 @@ def add_attack_chain(
     name: str,
     steps: list[str],
 ) -> str:
-
     # Create our own readable string ID
     chain_id = f"CHAIN-{uuid.uuid4().hex[:8]}"
 
@@ -917,10 +916,18 @@ def start_experiment(
         # P2 -> P4 Sandbox
         # ----------------------------------------
 
-        sandbox_result = execute_sandbox_test(
+        adaptive_execution = execute_selected_test(
             experiment_id,
             selected_test,
         )
+        if not adaptive_execution["executed"]:
+            add_experiment_log(
+                experiment_id,
+                f"Sandbox rejected test: {selected_test}",
+            )
+            break
+
+        sandbox_result = adaptive_execution["result"]
 
         sandbox_results.append(
             sandbox_result

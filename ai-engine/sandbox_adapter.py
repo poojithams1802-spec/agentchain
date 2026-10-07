@@ -1,4 +1,15 @@
+from pathlib import Path
 from typing import Any
+import sys
+
+
+# The sandbox package lives at the AgentChain project root, one level above
+# ai-engine. Day 12 scripts are normally launched from ai-engine, so the
+# project root is not automatically on sys.path. Keep this fix at the P3/P4
+# adapter boundary rather than changing P4 sandbox code.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from integration import build_sandbox_execution_request
 from schemas import PlannerDecision

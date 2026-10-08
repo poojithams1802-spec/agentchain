@@ -1201,7 +1201,7 @@ class AdaptivePlanner:
                 planner_input
             )
         else:
-            
+            retrieved_knowledge = []
             rag_topics = []
 
         multi_agent_context = (

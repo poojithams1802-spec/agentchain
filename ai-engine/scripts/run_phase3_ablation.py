@@ -12,7 +12,7 @@ from ablation_experiment_runner import (
     AblationExperimentRunner,
     save_ablation_result,
 )
-from schemas import PlannerInput
+from schemas import PlannerInput, TestingBudget
 
 
 def main() -> None:
@@ -22,6 +22,12 @@ def main() -> None:
     IMPORTANT:
     In the integrated P2 flow, replace the example experiment IDs below
     with IDs supplied by P2. P3 must not generate production IDs.
+
+    The experimental budget is explicit so that the saved result records
+    the intended Phase 3 testing constraints:
+        - maximum tests: 3
+        - maximum LLM calls: 3
+        - maximum planner/experiment time budget: 30 seconds
     """
 
     planner_input = PlannerInput(
@@ -50,6 +56,11 @@ def main() -> None:
             },
             "validation_result": {},
         },
+        testing_budget=TestingBudget(
+            max_tests=3,
+            max_llm_calls=3,
+            max_time_seconds=30.0,
+        ),
     )
 
     experiment_ids = {
@@ -76,29 +87,20 @@ def main() -> None:
     print("=" * 72)
     print("PHASE 3 DAY 12 — ABLATION EXPERIMENT")
     print("=" * 72)
-    print(
-        f"Saved local result: {output_path}"
-    )
+    print(f"Saved local result: {output_path}")
 
     for item in result["results"]:
         config = item["configuration"]
+
         print("\n" + "-" * 72)
         print(
             f"Configuration {config['config_id']}: "
             f"{config['name']}"
         )
-        print(
-            f"Status: {item['status']}"
-        )
-        print(
-            f"Selected tests: {item['selected_tests']}"
-        )
-        print(
-            f"Findings: {len(item['findings'])}"
-        )
-        print(
-            f"LLM calls: {item['llm_calls']}"
-        )
+        print(f"Status: {item['status']}")
+        print(f"Selected tests: {item['selected_tests']}")
+        print(f"Findings: {len(item['findings'])}")
+        print(f"LLM calls: {item['llm_calls']}")
         print(
             f"Selection accuracy: "
             f"{item['selection_accuracy']}"

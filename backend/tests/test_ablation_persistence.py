@@ -6,6 +6,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.ablation_persistence import persist_ablation_result
+from app.ablation_aggregation import get_persisted_ablation_aggregation
 
 
 class FakeCollection:
@@ -16,11 +17,35 @@ class FakeCollection:
         return sum(
             1
             for document in self.documents
-            if all(document.get(key) == value for key, value in query.items())
+            if all(
+                document.get(key) == value
+                for key, value in query.items()
+            )
         )
 
     def insert_one(self, document):
         self.documents.append(deepcopy(document))
+
+    def find(self, query, projection=None):
+        results = []
+
+        for document in self.documents:
+            if all(
+                document.get(key) == value
+                for key, value in query.items()
+            ):
+                if projection and projection.get("_id") == 0:
+                    result = {
+                        key: value
+                        for key, value in document.items()
+                        if key != "_id"
+                    }
+                else:
+                    result = deepcopy(document)
+
+                results.append(result)
+
+        return results
 
 
 def test_persists_phase3_ablation_result():
@@ -151,3 +176,176 @@ def test_rejects_invalid_ablation_configuration():
         )
 
     assert collection.documents == []
+
+from app.ablation_aggregation import aggregate_ablation_results
+
+
+def test_aggregates_phase3_ablation_results_in_configuration_order():
+    records = [
+        {
+            "evaluation_type": "phase3_ablation",
+            "ablation_run_id": "ABL003",
+            "experiment_id": "EXP003",
+            "configuration": "llm_chain_context",
+            "status": "completed",
+            "tests_selected": 3,
+            "llm_calls": 3,
+            "selection_accuracy": 0.8,
+            "chain_metrics": {
+                "validation_rate": 0.75,
+                "residual_vulnerable_steps": [
+                    "memory_access_test",
+                ],
+            },
+        },
+        {
+            "evaluation_type": "phase3_ablation",
+            "ablation_run_id": "ABL001",
+            "experiment_id": "EXP001",
+            "configuration": "llm_only",
+            "status": "completed",
+            "tests_selected": 2,
+            "llm_calls": 2,
+            "selection_accuracy": 0.5,
+        },
+        {
+            "evaluation_type": "phase3_ablation",
+            "ablation_run_id": "ABL004",
+            "experiment_id": "EXP004",
+            "configuration": "llm_rag_chain_context",
+            "status": "completed",
+            "tests_selected": 3,
+            "llm_calls": 3,
+            "selection_accuracy": 1.0,
+        },
+        {
+            "evaluation_type": "phase3_ablation",
+            "ablation_run_id": "ABL002",
+            "experiment_id": "EXP002",
+            "configuration": "llm_rag",
+            "status": "completed",
+            "tests_selected": 2,
+            "llm_calls": 2,
+            "selection_accuracy": 0.75,
+        },
+    ]
+
+    result = aggregate_ablation_results(records)
+
+    assert result["study"] == "phase3_ablation"
+    assert result["configuration_order"] == [
+        "llm_only",
+        "llm_rag",
+        "llm_chain_context",
+        "llm_rag_chain_context",
+    ]
+
+    assert result["configuration_count"] == 4
+
+    assert [
+        item["configuration"]
+        for item in result["comparisons"]
+    ] == [
+        "llm_only",
+        "llm_rag",
+        "llm_chain_context",
+        "llm_rag_chain_context",
+    ]
+
+    assert result["comparisons"][0]["selection_accuracy"] == 0.5
+    assert result["comparisons"][1]["selection_accuracy"] == 0.75
+    assert result["comparisons"][2]["validation_rate"] == 0.75
+    assert result["comparisons"][2]["residual_vulnerable_steps"] == 1
+    assert result["comparisons"][3]["selection_accuracy"] == 1.0
+
+
+def test_aggregation_ignores_unknown_configurations():
+    records = [
+        {
+            "evaluation_type": "phase3_ablation",
+            "ablation_run_id": "ABL001",
+            "experiment_id": "EXP001",
+            "configuration": "llm_only",
+            "selection_accuracy": 0.9,
+        },
+        {
+            "evaluation_type": "phase3_ablation",
+            "ablation_run_id": "ABL002",
+            "experiment_id": "EXP002",
+            "configuration": "unknown_configuration",
+            "selection_accuracy": 0.1,
+        },
+    ]
+
+    result = aggregate_ablation_results(records)
+
+    assert result["configuration_count"] == 1
+    assert result["comparisons"][0]["experiment_id"] == "EXP001"
+
+def test_aggregation_preserves_missing_metrics_as_none():
+    records = [
+        {
+            "evaluation_type": "phase3_ablation",
+            "ablation_run_id": "ABL001",
+            "experiment_id": "EXP001",
+            "configuration": "llm_only",
+            "status": "completed",
+        }
+    ]
+
+    result = aggregate_ablation_results(records)
+
+    comparison = result["comparisons"][0]
+
+    assert comparison["selection_accuracy"] is None
+    assert comparison["chain_discovery_rate"] is None
+    assert comparison["mitigation_success"] is None
+    assert comparison["chain_disruption"] is None
+    assert comparison["validation_rate"] is None
+    assert comparison["residual_vulnerable_steps"] is None
+
+def test_get_persisted_ablation_aggregation_filters_phase3_records():
+    collection = FakeCollection(
+        [
+            {
+                "evaluation_type": "phase2_mitigation",
+                "experiment_id": "EXP100",
+                "configuration": "llm_only",
+                "selection_accuracy": 0.1,
+            },
+            {
+                "evaluation_type": "phase3_ablation",
+                "ablation_run_id": "ABL001",
+                "experiment_id": "EXP001",
+                "configuration": "llm_only",
+                "status": "completed",
+                "selection_accuracy": 0.9,
+            },
+            {
+                "evaluation_type": "phase3_ablation",
+                "ablation_run_id": "ABL002",
+                "experiment_id": "EXP002",
+                "configuration": "llm_rag",
+                "status": "completed",
+                "selection_accuracy": 0.95,
+            },
+        ]
+    )
+
+    result = get_persisted_ablation_aggregation(collection)
+
+    assert result["study"] == "phase3_ablation"
+    assert result["configuration_count"] == 2
+
+    assert [
+        item["configuration"]
+        for item in result["comparisons"]
+    ] == [
+        "llm_only",
+        "llm_rag",
+    ]
+
+    assert all(
+        item["experiment_id"] in {"EXP001", "EXP002"}
+        for item in result["comparisons"]
+    )

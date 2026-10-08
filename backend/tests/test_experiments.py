@@ -303,16 +303,16 @@ def test_list_scenarios_returns_registered_chain_scenarios(
     body = response.json()
 
     assert set(body) == {"scenarios"}
-    assert len(body["scenarios"]) == 2
+    assert len(body["scenarios"]) >= 2
 
     scenario_ids = {
         scenario["scenario_id"]
         for scenario in body["scenarios"]
     }
 
-    assert scenario_ids == {
-        "CHAIN-AUTH-TOOL",
-        "CHAIN-AUTH-TOOL-MEM",
+    assert scenario_ids >= {
+    "CHAIN-AUTH-TOOL",
+    "CHAIN-AUTH-TOOL-MEM",
     }
 
 

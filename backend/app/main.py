@@ -23,7 +23,12 @@ from app.schemas import (
 )
 import app.mitigation_repository as mitigation_repository
 from app.scenario_config import get_all_scenarios, get_scenario
-from app.ablation_persistence import persist_ablation_result
+from app.ablation_persistence import (
+    persist_ablation_result,
+)
+from app.ablation_aggregation import (
+    get_persisted_ablation_aggregation,
+)
 
 # Load environment variables
 load_dotenv("backend/.env")
@@ -1339,6 +1344,10 @@ def get_phase3_ablation_results():
     return {
         "results": records,
     }
+
+@app.get("/phase3/ablation/aggregation")
+def get_phase3_ablation_aggregation():
+    return get_persisted_ablation_aggregation(db.evaluation_results)
 
 @app.post("/phase2/evaluation/run")
 def run_phase2_evaluation():

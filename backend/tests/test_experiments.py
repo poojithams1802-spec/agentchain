@@ -66,7 +66,7 @@ class FakeCollection:
 
         return deepcopy(matching_documents)
 
-    def find_one(self, query):
+    def find_one(self, query, projection=None):
         for document in self.documents:
             if all(document.get(key) == value for key, value in query.items()):
                 return deepcopy(document)
@@ -77,6 +77,7 @@ class FakeDatabase:
     def __init__(self):
         self.experiments = FakeCollection()
         self.evaluation_results = FakeCollection()
+        self.agent_states = FakeCollection()
 
 
 @pytest.fixture
@@ -313,7 +314,7 @@ def test_list_scenarios_returns_registered_chain_scenarios(
     assert scenario_ids >= {
     "CHAIN-AUTH-TOOL",
     "CHAIN-AUTH-TOOL-MEM",
-    }
+}
 
 
 def test_get_scenario_returns_registered_chain_configuration(
@@ -463,3 +464,91 @@ def test_get_phase3_ablation_results_returns_only_ablation_records(
             }
         ]
     }
+
+def test_create_agent_state(experiment_client):
+    client, database = experiment_client
+
+    payload = {
+        "experiment_id": "EXP001",
+        "agents": [
+            {
+                "agent_id": "agent_a",
+                "role": "research",
+                "tools": ["knowledge_search"],
+                "permissions": ["read"],
+            },
+            {
+                "agent_id": "agent_b",
+                "role": "planning",
+                "tools": ["planner"],
+                "permissions": ["read"],
+            },
+        ],
+        "interactions": [
+            {
+                "from_agent": "agent_a",
+                "to_agent": "agent_b",
+                "type": "research_handoff",
+            }
+        ],
+        "trust_context": {
+            "untrusted_agents": [],
+            "cross_agent_trust": False,
+        },
+        "shared_memory_context": {
+            "shared_memory_enabled": True,
+            "cross_agent_memory": True,
+        },
+        "current_agent": "agent_b",
+        "current_task": "planning",
+    }
+
+    response = client.post(
+        "/experiments/EXP001/agents/state",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert response.json()["experiment_id"] == "EXP001"
+
+
+def test_get_agent_state(experiment_client):
+    client, database = experiment_client
+
+    database.agent_states.insert_one(
+        {
+            "experiment_id": "EXP001",
+            "agents": [
+                {
+                    "agent_id": "agent_a",
+                    "role": "research",
+                }
+            ],
+            "interactions": [],
+            "trust_context": {
+                "untrusted_agents": [],
+                "cross_agent_trust": False,
+            },
+            "shared_memory_context": {
+                "shared_memory_enabled": True,
+                "cross_agent_memory": True,
+            },
+            "current_agent": "agent_a",
+            "current_task": "research",
+        }
+    )
+
+    response = client.get("/experiments/EXP001/agents/state")
+
+    assert response.status_code == 200
+    assert response.json()["experiment_id"] == "EXP001"
+    assert response.json()["current_agent"] == "agent_a"
+
+
+def test_get_agent_state_not_found(experiment_client):
+    client, database = experiment_client
+
+    response = client.get("/experiments/DOES-NOT-EXIST/agents/state")
+
+    assert response.status_code == 404

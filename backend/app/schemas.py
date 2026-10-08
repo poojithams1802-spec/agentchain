@@ -137,3 +137,15 @@ class AblationResultCreate(BaseModel):
     latency: float | None = Field(None, ge=0)
     validation_rate: float | None = Field(None, ge=0, le=1)
     residual_vulnerable_steps: int | None = Field(None, ge=0)
+
+class AgentStateCreate(BaseModel):
+    experiment_id: str = Field(..., min_length=1)
+
+    agents: list[dict[str, Any]] = Field(default_factory=list)
+    interactions: list[dict[str, Any]] = Field(default_factory=list)
+
+    trust_context: dict[str, Any] = Field(default_factory=dict)
+    shared_memory_context: dict[str, Any] = Field(default_factory=dict)
+
+    current_agent: str | None = None
+    current_task: str | None = None

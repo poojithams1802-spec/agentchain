@@ -11,3 +11,6 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "agentchain")
 
 client = MongoClient(MONGO_URI)
 db = client[MONGO_DB_NAME]
+
+# Phase 3 multi-agent state persistence
+db.agent_states

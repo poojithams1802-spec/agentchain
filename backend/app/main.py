@@ -6,6 +6,20 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv("backend/.env")
+
+# Make ai-engine and sandbox available
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../..")
+)
+
+sys.path.append(
+    os.path.join(PROJECT_ROOT, "ai-engine")
+)
+
+sys.path.append(PROJECT_ROOT)
+
 from app.database import db
 from app.schemas import (
     BeforeAfterReplayResult,
@@ -20,6 +34,7 @@ from app.schemas import (
     MitigationResultResponse,
     MitigationSelectionRequest,
     AblationResultCreate,
+    AgentStateCreate,
 )
 import app.mitigation_repository as mitigation_repository
 from app.scenario_config import get_all_scenarios, get_scenario
@@ -29,20 +44,6 @@ from app.ablation_persistence import (
 from app.ablation_aggregation import (
     get_persisted_ablation_aggregation,
 )
-
-# Load environment variables
-load_dotenv("backend/.env")
-
-# Make ai-engine and sandbox available
-PROJECT_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../..")
-)
-
-sys.path.append(
-    os.path.join(PROJECT_ROOT, "ai-engine")
-)
-
-sys.path.append(PROJECT_ROOT)
 
 from planner import AdaptivePlanner
 from schemas import PlannerInput, Finding
@@ -1372,3 +1373,42 @@ def run_phase2_evaluation():
         "records_generated": len(records),
         "records_persisted": persisted_count,
     }
+
+@app.post("/experiments/{experiment_id}/agents/state")
+def create_agent_state(
+    experiment_id: str,
+    payload: AgentStateCreate,
+):
+    document = {
+        "experiment_id": experiment_id,
+        "agents": payload.agents,
+        "interactions": payload.interactions,
+        "trust_context": payload.trust_context,
+        "shared_memory_context": payload.shared_memory_context,
+        "current_agent": payload.current_agent,
+        "current_task": payload.current_task,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    db.agent_states.insert_one(document)
+
+    return {
+        "status": "success",
+        "experiment_id": experiment_id,
+    }
+
+
+@app.get("/experiments/{experiment_id}/agents/state")
+def get_agent_state(experiment_id: str):
+    state = db.agent_states.find_one(
+        {"experiment_id": experiment_id},
+        {"_id": 0},
+    )
+
+    if state is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent state not found for experiment: {experiment_id}",
+        )
+
+    return state

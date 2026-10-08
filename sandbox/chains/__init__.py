@@ -4,7 +4,7 @@ Phase 3 attack-chain package.
 This package defines, registers, and executes controlled
 multi-step attack-chain scenarios.
 
-Imports are intentionally kept lightweight here.  The executor imports
+Imports are intentionally kept lightweight here. The executor imports
 the validator, while the validator imports the registry, so eagerly
 importing the executor from this package would create an import cycle
 when the validator is imported first.

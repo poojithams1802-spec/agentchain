@@ -35,6 +35,7 @@ from app.schemas import (
     MitigationSelectionRequest,
     AblationResultCreate,
     AgentStateCreate,
+    MultiAgentSecurityResultCreate,
 )
 import app.mitigation_repository as mitigation_repository
 from app.scenario_config import get_all_scenarios, get_scenario
@@ -66,6 +67,9 @@ from sandbox.evaluation.phase2_metrics import calculate_phase2_metrics
 from sandbox.evaluation.research_metrics import calculate_research_metrics
 from sandbox.execution.adaptive_test_executor import execute_selected_test
 from sandbox.validator.chain_validator import ChainValidator
+from sandbox.agent.multi_agent_security import (
+    run_and_validate_multi_agent_security_scenario,
+)
 from app.phase2_persistence import persist_phase2_condition_records
 from app.phase3_persistence import persist_phase3_chain_result
 
@@ -1397,6 +1401,70 @@ def create_agent_state(
         "experiment_id": experiment_id,
     }
 
+@app.post("/experiments/{experiment_id}/agents/security-result")
+def create_multi_agent_security_result(
+    experiment_id: str,
+    payload: MultiAgentSecurityResultCreate,
+):
+    document = {
+        "experiment_id": experiment_id,
+        "agents": payload.agents,
+        "interactions": payload.interactions,
+        "trust_context": payload.trust_context,
+        "shared_memory_context": payload.shared_memory_context,
+        "assessment": payload.assessment,
+        "status": payload.status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    db.multi_agent_results.insert_one(document)
+
+    return {
+        "status": "success",
+        "experiment_id": experiment_id,
+    }
+
+@app.get("/experiments/{experiment_id}/agents/security-result")
+def get_multi_agent_security_result(experiment_id: str):
+    result = db.multi_agent_results.find_one(
+        {"experiment_id": experiment_id},
+        {"_id": 0},
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Multi-agent security result not found for "
+                f"experiment: {experiment_id}"
+            ),
+        )
+
+    return result
+
+
+@app.post("/experiments/{experiment_id}/agents/security-result/run")
+def run_multi_agent_security_result(experiment_id: str):
+    # Execute and validate P4's controlled security scenario.
+    result = run_and_validate_multi_agent_security_scenario()
+
+    # Attach the experiment ID and persistence timestamp.
+    document = {
+        "experiment_id": experiment_id,
+        **result,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Save the actual scenario output in MongoDB.
+    db.multi_agent_results.insert_one(document)
+
+    return {
+        "status": "success",
+        "experiment_id": experiment_id,
+        "chain_id": result["chain_id"],
+        "chain_triggered": result["chain_triggered"],
+        "validation": result["validation"],
+    }
 
 @app.get("/experiments/{experiment_id}/agents/state")
 def get_agent_state(experiment_id: str):

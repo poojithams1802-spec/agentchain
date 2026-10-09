@@ -78,6 +78,7 @@ class FakeDatabase:
         self.experiments = FakeCollection()
         self.evaluation_results = FakeCollection()
         self.agent_states = FakeCollection()
+        self.multi_agent_results = FakeCollection()
 
 
 @pytest.fixture
@@ -546,6 +547,192 @@ def test_get_agent_state(experiment_client):
     assert response.json()["current_agent"] == "agent_a"
 
 
+def test_create_multi_agent_security_result(experiment_client):
+    client, _ = experiment_client
+
+    response = client.post(
+        "/experiments/EXP-DAY14/agents/security-result",
+        json={
+            "experiment_id": "EXP-DAY14",
+            "agents": [
+                {
+                    "agent_id": "agent_a",
+                    "role": "research",
+                    "trust_level": "trusted",
+                },
+                {
+                    "agent_id": "agent_b",
+                    "role": "execution",
+                    "trust_level": "low",
+                },
+            ],
+            "interactions": [
+                {
+                    "from_agent": "agent_a",
+                    "to_agent": "agent_b",
+                    "action": "delegation",
+                    "allowed": True,
+                }
+            ],
+            "trust_context": {
+                "untrusted_agents": ["agent_b"],
+                "cross_agent_trust": True,
+            },
+            "shared_memory_context": {
+                "shared_memory_enabled": True,
+                "cross_agent_memory": True,
+            },
+            "assessment": {
+                "enabled": True,
+                "interaction_assessments": [
+                    {
+                        "from_agent": "agent_a",
+                        "to_agent": "agent_b",
+                        "action": "delegation",
+                        "is_delegation": True,
+                        "allowed": True,
+                        "source_trust": "trusted",
+                        "target_trust": "low",
+                        "risks": ["delegation_to_low_trust_agent"],
+                    }
+                ],
+                "trust_risks": ["untrusted_agent_context"],
+                "delegation_risks": ["delegation_to_low_trust_agent"],
+                "security_signals": ["privilege_propagation"],
+                "recommended_checks": ["permission_test"],
+            },
+            "status": "completed",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert response.json()["experiment_id"] == "EXP-DAY14"
+
+
+def test_get_multi_agent_security_result(experiment_client):
+    client, fake_db = experiment_client
+
+    fake_db.multi_agent_results.insert_one(
+        {
+            "experiment_id": "EXP-DAY14",
+            "agents": [
+                {
+                    "agent_id": "agent_a",
+                    "role": "research",
+                    "trust_level": "trusted",
+                },
+                {
+                    "agent_id": "agent_b",
+                    "role": "execution",
+                    "trust_level": "low",
+                },
+            ],
+            "interactions": [
+                {
+                    "from_agent": "agent_a",
+                    "to_agent": "agent_b",
+                    "action": "delegation",
+                    "allowed": True,
+                }
+            ],
+            "trust_context": {
+                "untrusted_agents": ["agent_b"],
+                "cross_agent_trust": True,
+            },
+            "shared_memory_context": {
+                "shared_memory_enabled": True,
+                "cross_agent_memory": True,
+            },
+            "assessment": {
+                "enabled": True,
+                "interaction_assessments": [
+                    {
+                        "from_agent": "agent_a",
+                        "to_agent": "agent_b",
+                        "action": "delegation",
+                        "is_delegation": True,
+                        "allowed": True,
+                        "source_trust": "trusted",
+                        "target_trust": "low",
+                        "risks": ["delegation_to_low_trust_agent"],
+                    }
+                ],
+                "trust_risks": ["untrusted_agent_context"],
+                "delegation_risks": ["delegation_to_low_trust_agent"],
+                "security_signals": ["privilege_propagation"],
+                "recommended_checks": ["permission_test"],
+            },
+            "status": "completed",
+        }
+    )
+
+    response = client.get(
+        "/experiments/EXP-DAY14/agents/security-result"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["experiment_id"] == "EXP-DAY14"
+    assert data["status"] == "completed"
+    assert data["assessment"]["enabled"] is True
+    assert data["assessment"]["delegation_risks"] == [
+        "delegation_to_low_trust_agent"
+    ]
+
+
+def test_run_multi_agent_security_result(experiment_client, monkeypatch):
+    client, fake_db = experiment_client
+
+    scenario_result = {
+        "status": "completed",
+        "chain_id": "MULTI-AGENT-CHAIN-V11-V10",
+        "agents": [{"agent_id": "AGENT_UNTRUSTED"}],
+        "communication": {"status": "delivered"},
+        "vulnerabilities": {
+            "V11": {"vulnerable": True},
+            "V10": {"vulnerable": True},
+        },
+        "chain_steps": [
+            {"step": 1, "vulnerability_id": "V11"},
+            {"step": 2, "vulnerability_id": "V10"},
+        ],
+        "chain_triggered": True,
+        "expected_chain": ["V11", "V10"],
+        "validation": {
+            "valid": True,
+            "errors": [],
+            "chain_id": "MULTI-AGENT-CHAIN-V11-V10",
+            "chain_length": 2,
+            "validated_chain": True,
+        },
+    }
+
+    monkeypatch.setattr(
+        main,
+        "run_and_validate_multi_agent_security_scenario",
+        lambda: scenario_result,
+    )
+
+    response = client.post(
+        "/experiments/EXP-DAY14/agents/security-result/run"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["chain_triggered"] is True
+    assert response.json()["validation"]["valid"] is True
+
+    saved = fake_db.multi_agent_results.find_one(
+        {"experiment_id": "EXP-DAY14"},
+        {"_id": 0},
+    )
+
+    assert saved is not None
+    assert saved["chain_id"] == "MULTI-AGENT-CHAIN-V11-V10"
+    assert saved["chain_steps"] == scenario_result["chain_steps"]
+    assert saved["validation"]["validated_chain"] is True
 def test_get_agent_state_not_found(experiment_client):
     client, database = experiment_client
 

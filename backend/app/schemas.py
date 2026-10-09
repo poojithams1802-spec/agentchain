@@ -140,12 +140,18 @@ class AblationResultCreate(BaseModel):
 
 class AgentStateCreate(BaseModel):
     experiment_id: str = Field(..., min_length=1)
-
     agents: list[dict[str, Any]] = Field(default_factory=list)
     interactions: list[dict[str, Any]] = Field(default_factory=list)
-
     trust_context: dict[str, Any] = Field(default_factory=dict)
     shared_memory_context: dict[str, Any] = Field(default_factory=dict)
-
     current_agent: str | None = None
     current_task: str | None = None
+
+class MultiAgentSecurityResultCreate(BaseModel):
+    experiment_id: str = Field(..., min_length=1)
+    agents: list[dict[str, Any]] = Field(default_factory=list)
+    interactions: list[dict[str, Any]] = Field(default_factory=list)
+    trust_context: dict[str, Any] = Field(default_factory=dict)
+    shared_memory_context: dict[str, Any] = Field(default_factory=dict)
+    assessment: dict[str, Any] = Field(default_factory=dict)
+    status: str = Field(..., min_length=1)

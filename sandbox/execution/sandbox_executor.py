@@ -28,7 +28,6 @@ TEST_MITIGATION_MAP = {
     "sensitive_data_test": "sensitive_data_exposure",
 }
 
-
 def execute_sandbox_test(experiment_id, test_name):
     """
     Execute one controlled sandbox test.
@@ -45,6 +44,9 @@ def execute_sandbox_test(experiment_id, test_name):
     Execution-cost metadata is recorded for each test execution.
     """
 
+    # ---------------------------------------------------------
+    # 1. Validate experiment ID
+    # ---------------------------------------------------------
     if not experiment_id:
         return {
             "status": "failed",
@@ -52,8 +54,12 @@ def execute_sandbox_test(experiment_id, test_name):
             "finding": None,
             "severity": None,
             "evidence": "experiment_id is required.",
+            "confidence": 0.0,  # Added for P3 adapter contract
         }
 
+    # ---------------------------------------------------------
+    # 2. Validate the requested sandbox test
+    # ---------------------------------------------------------
     if test_name not in ALLOWED_TESTS:
         return {
             "status": "failed",
@@ -61,13 +67,12 @@ def execute_sandbox_test(experiment_id, test_name):
             "finding": None,
             "severity": None,
             "evidence": f"Unknown test: {test_name}",
+            "confidence": 0.0,  # Added for P3 adapter contract
         }
 
     # ---------------------------------------------------------
-    # Run the original deterministic vulnerability scenario
-    # while recording execution-cost metadata.
+    # 3. Execute the deterministic vulnerability scenario
     # ---------------------------------------------------------
-
     start_time = perf_counter()
 
     result = run_test(test_name)
@@ -79,20 +84,18 @@ def execute_sandbox_test(experiment_id, test_name):
         "execution_time_seconds": execution_time_seconds,
     }
 
-    # Copy the result before attaching Phase 3 metadata.
+    # Copy the result before attaching execution metadata.
     result = dict(result)
     result["execution_cost"] = execution_cost
 
     # ---------------------------------------------------------
-    # Find the defensive control associated with this test.
+    # 4. Find the defensive control associated with this test
     # ---------------------------------------------------------
-
     mitigation_control = TEST_MITIGATION_MAP.get(test_name)
 
     # ---------------------------------------------------------
-    # Check whether that control is active for this experiment.
+    # 5. Check whether the corresponding mitigation is active
     # ---------------------------------------------------------
-
     mitigation_active = (
         mitigation_control is not None
         and is_mitigation_active(
@@ -102,19 +105,32 @@ def execute_sandbox_test(experiment_id, test_name):
     )
 
     # ---------------------------------------------------------
-    # No mitigation is active.
-    # Return the original Phase 1 result plus Phase 3
-    # execution-cost metadata.
+    # 6. Return the original result when no mitigation is active
     # ---------------------------------------------------------
-
     if not mitigation_active:
         return result
 
     # ---------------------------------------------------------
-    # Mitigation is active.
-    # Convert the vulnerable result into a protected result.
+    # 7. Return the protected result when mitigation is active
     # ---------------------------------------------------------
+    return {
+        "status": "completed",
+        "test": test_name,
+        "finding": result["finding"],
+        "severity": result["severity"],
+        "evidence": {
+            "original": result["evidence"],
+            "mitigation": mitigation_control,
+            "mitigation_status": "active",
+            "result": "attack_blocked",
+        },
+        "confidence": 1.0,
+        "mitigation_applied": True,
+        "mitigation_control": mitigation_control,
 
+        # Phase 3 execution-cost metadata
+        "execution_cost": result["execution_cost"],
+    }
     return {
         "status": "completed",
         "test": test_name,

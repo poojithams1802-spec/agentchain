@@ -48,6 +48,7 @@ from app.ablation_aggregation import (
 
 from planner import AdaptivePlanner
 from schemas import PlannerInput, Finding
+from adaptive_loop import AdaptiveLoop
 from mitigation_schemas import (
     MitigationFinding,
     MitigationSelectorInput,
@@ -855,12 +856,16 @@ def start_experiment(
             detail="Experiment not found",
         )
 
+
     # ----------------------------------------
-    # Set experiment to running
+    # Atomically claim experiment to prevent duplicate starts
     # ----------------------------------------
 
-    db.experiments.update_one(
-        {"experiment_id": experiment_id},
+    start_result = db.experiments.update_one(
+        {
+            "experiment_id": experiment_id,
+            "status": {"$nin": ["running", "completed"]},
+        },
         {
             "$set": {
                 "status": "running",
@@ -870,10 +875,11 @@ def start_experiment(
         },
     )
 
-    add_experiment_log(
-        experiment_id,
-        "Experiment started",
-    )
+    if start_result.modified_count != 1:
+        raise HTTPException(
+            status_code=409,
+            detail="Experiment is already running or has completed and cannot be started again.",
+        )
 
     # ----------------------------------------
     # Day 7 Adaptive Orchestration
@@ -885,165 +891,115 @@ def start_experiment(
         "memory_access_test",
     ]
 
-    previous_tests = []
-    planner_findings = []
-    selected_tests = []
-    executed_tests = []
-    sandbox_results = []
+    max_tests = min(
+        int(experiment["max_tests"]),
+        len(available_tests),
+    )
 
-    max_tests = experiment["max_tests"]
+    planner_input = PlannerInput(
+        findings=[],
+        previous_tests=[],
+        available_tests=available_tests,
+        retrieved_knowledge=[],
+        chain_state={
+            "experiment_id": experiment_id,
+            "executed_tests": [],
+        },
+    )
 
-    # ----------------------------------------
-    # Adaptive testing loop
-    # ----------------------------------------
+    adaptive_loop = AdaptiveLoop(planner=planner)
 
-    for test_number in range(max_tests):
+    # Run the adaptive loop exactly once. It already executes
+    # each selected test through P3's adapter and P4's sandbox.
+    detailed_result = adaptive_loop.run_detailed(
+        planner_input=planner_input,
+        experiment_id=experiment_id,
+        max_tests=max_tests,
+    )
 
-        # ----------------------------------------
-        # P2 -> P3 Adaptive Planner
-        # ----------------------------------------
+    selected_tests = detailed_result["selected_tests"]
+    sandbox_results = detailed_result["execution_results"]
 
-        planner_input = PlannerInput(
-            findings=planner_findings,
-            previous_tests=previous_tests,
-            available_tests=available_tests,
-            retrieved_knowledge=[],
-            chain_state={
-                "experiment_id": experiment_id,
-                "executed_tests": executed_tests,
-            },
-        )
+    # Only successfully completed executions are used to construct
+    # the candidate chain. Failed attempts remain in sandbox_results.
+    executed_tests = [
+        result["test"]
+        for result in sandbox_results
+        if result.get("status") == "completed"
+    ]
 
-        decision = planner.plan(
-            planner_input
-        )
-
-        planner_selected_test = decision.selected_test
-        selected_tests.append(planner_selected_test)
-
-        db.experiments.update_one(
-            {"experiment_id": experiment_id},
-            {
-                "$set": {
-                    "selected_tests": selected_tests,
-                    "executed_tests": executed_tests,
-                }
-            },
-        )
-
-        selected_test = planner_selected_test
-
-        # ----------------------------------------
-        # Prevent duplicate test execution
-        # ----------------------------------------
-
-        if selected_test in previous_tests:
-
-            remaining_tests = [
-                test
-                for test in available_tests
-                if test not in previous_tests
-            ]
-
-            if not remaining_tests:
-                break
-
-            selected_test = remaining_tests[0]
+    # Persist each raw execution result without rerunning it.
+    for result in sandbox_results:
+        test_name = result.get("test", "unknown_test")
 
         add_experiment_log(
             experiment_id,
-            f"Planner selected test: {selected_test}",
+            f"Adaptive execution result: {test_name} - "
+            f"{result.get('status', 'unknown')}",
         )
 
-        # ----------------------------------------
-        # P2 -> P4 Sandbox
-        # ----------------------------------------
-
-        adaptive_execution = execute_selected_test(
-            experiment_id,
-            selected_test,
-        )
-        if not adaptive_execution["executed"]:
+        if result.get("status") == "failed":
             add_experiment_log(
                 experiment_id,
-                f"Sandbox rejected test: {selected_test}",
+                f"Sandbox execution failed: {test_name}",
             )
-            break
-
-        sandbox_result = adaptive_execution["result"]
-
-        sandbox_results.append(
-            sandbox_result
-        )
-
-        add_experiment_log(
-            experiment_id,
-            f"Sandbox completed: {sandbox_result['test']}",
-        )
-
-        # ----------------------------------------
-        # Store finding in MongoDB
-        # ----------------------------------------
+            continue
 
         add_experiment_finding(
             experiment_id=experiment_id,
-            test=sandbox_result["test"],
-            finding=sandbox_result["finding"],
-            severity=sandbox_result["severity"],
-            evidence=sandbox_result["evidence"],
-            confidence=sandbox_result["confidence"],
+            test=test_name,
+            finding=result["finding"],
+            severity=result["severity"],
+            evidence=result["evidence"],
+            confidence=result["confidence"],
         )
 
-        # ----------------------------------------
-        # Convert P4 result -> P3 Finding
-        # ----------------------------------------
+    # Store the detailed adaptive-run record, including raw execution
+    # evidence, decisions, and distinct budget counters.
+    db.adaptive_run_results.insert_one(
+        {
+            "experiment_id": experiment_id,
+            "status": detailed_result["status"],
+            "tests_used": detailed_result["tests_used"],
+            "selected_tests": selected_tests,
+            "decisions": detailed_result["decisions"],
+            "execution_results": sandbox_results,
+            "findings": [
+                finding.model_dump()
+                for finding in detailed_result["findings"]
+            ],
+            "llm_calls_used": detailed_result["llm_calls_used"],
+            "llm_calls": detailed_result["llm_calls"],
+            "fallback_used": detailed_result["fallback_used"],
+            "budget_used": detailed_result["budget_used"],
+            "budget_used_delta": detailed_result["budget_used_delta"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
 
-        planner_finding = Finding(
-            finding=sandbox_result["finding"],
-            severity=sandbox_result["severity"],
-            confidence=sandbox_result["confidence"],
-            evidence=str(
-                sandbox_result["evidence"]
-            ),
-        )
+    previous_budget_used = experiment.get("budget_used", 0)
+    budget_used_delta = detailed_result["budget_used_delta"]
 
-        planner_findings.append(
-            planner_finding
-        )
+    db.experiments.update_one(
+        {"experiment_id": experiment_id},
+        {
+            "$set": {
+                "selected_tests": selected_tests,
+                "executed_tests": executed_tests,
+                "budget_used": previous_budget_used
+                + budget_used_delta["tests"],
+                "adaptive_budget_used": detailed_result["budget_used"],
+                "adaptive_budget_used_delta": budget_used_delta,
+            }
+        },
+    )
 
-        # ----------------------------------------
-        # Update test history
-        # ----------------------------------------
 
-        previous_tests.append(
-            selected_test
-        )
-
-        executed_tests.append(selected_test)
-
-        db.experiments.update_one(
-            {"experiment_id": experiment_id},
-            {
-                "$set": {
-                    "selected_tests": selected_tests,
-                    "executed_tests": executed_tests,
-                }
-            },
-        )
-
-        # Remove executed test
-        if selected_test in available_tests:
-
-            available_tests.remove(
-                selected_test
-            )
-
-        # ----------------------------------------
-        # Stop when no tests remain
-        # ----------------------------------------
-
-        if not available_tests:
-            break
+    add_experiment_log(
+        experiment_id,
+        f"Adaptive loop completed: {len(sandbox_results)} attempts, "
+        f"{len(executed_tests)} successful executions",
+    )
 
     # ----------------------------------------
     # Candidate Chain
@@ -1134,15 +1090,24 @@ def start_experiment(
         "experiment_id": experiment_id,
         "status": "completed",
         "executed_tests": executed_tests,
-        "findings_created": len(
-            sandbox_results
-        ),
+        "findings_created": len(detailed_result["findings"]),
         "sandbox_results": sandbox_results,
         "candidate_chain": {
             "chain_id": chain_id,
             "steps": executed_tests,
         },
         "validation_result": validation_result,
+
+        # Adaptive loop details for P3/P4 verification
+        "tests_used": detailed_result["tests_used"],
+        "selected_tests": selected_tests,
+        "decisions": detailed_result["decisions"],
+        "execution_results": sandbox_results,
+        "llm_calls_used": detailed_result["llm_calls_used"],
+        "llm_calls": detailed_result["llm_calls"],
+        "fallback_used": detailed_result["fallback_used"],
+        "budget_used": detailed_result["budget_used"],
+        "budget_used_delta": detailed_result["budget_used_delta"],
     }
 
 

@@ -72,6 +72,38 @@ class FakeCollection:
                 return deepcopy(document)
         return None
 
+    def update_one(self, query, update):
+        for document in self.documents:
+            if document.get("experiment_id") != query.get("experiment_id"):
+                continue
+
+            status_filter = query.get("status", {})
+            excluded_statuses = status_filter.get("$nin", [])
+
+            if document.get("status") in excluded_statuses:
+                continue
+
+            changes = update.get("$set", {})
+            modified = any(
+                document.get(key) != value
+                for key, value in changes.items()
+            )
+
+            if modified:
+                document.update(deepcopy(changes))
+
+            return type(
+                "UpdateResult",
+                (),
+                {"matched_count": 1, "modified_count": int(modified)},
+            )()
+
+        return type(
+            "UpdateResult",
+            (),
+            {"matched_count": 0, "modified_count": 0},
+        )()
+
 
 class FakeDatabase:
     def __init__(self):
@@ -739,3 +771,35 @@ def test_get_agent_state_not_found(experiment_client):
     response = client.get("/experiments/DOES-NOT-EXIST/agents/state")
 
     assert response.status_code == 404
+
+
+def test_completed_experiment_cannot_be_started_twice(
+    experiment_client,
+):
+    client, database = experiment_client
+
+    database.experiments.insert_one(
+        {
+            "experiment_id": "EXP-DUPLICATE",
+            "name": "Duplicate protection test",
+            "mode": "adaptive",
+            "max_tests": 3,
+            "status": "completed",
+            "selected_tests": ["permission_test"],
+            "executed_tests": ["permission_test"],
+            "budget_used": 1,
+        }
+    )
+
+    response = client.post("/experiments/EXP-DUPLICATE/start")
+
+    assert response.status_code == 409
+    assert "already running or has completed" in response.json()["detail"]
+
+    saved = database.experiments.find_one(
+        {"experiment_id": "EXP-DUPLICATE"}
+    )
+    assert saved["status"] == "completed"
+    assert saved["selected_tests"] == ["permission_test"]
+    assert saved["executed_tests"] == ["permission_test"]
+    assert saved["budget_used"] == 1

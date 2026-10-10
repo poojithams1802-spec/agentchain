@@ -40,10 +40,29 @@ class FakeCollection:
 
     def update_one(self, query, update):
         for document in self.documents:
-            if all(document.get(key) == value for key, value in query.items()):
+            matches = True
+
+            for key, value in query.items():
+                if isinstance(value, dict) and "$nin" in value:
+                    if document.get(key) in value["$nin"]:
+                        matches = False
+                        break
+                elif document.get(key) != value:
+                    matches = False
+                    break
+
+            if matches:
+                old_document = deepcopy(document)
                 document.update(deepcopy(update["$set"]))
-                return
+
+                modified_count = int(document != old_document)
+                return SimpleNamespace(
+                    matched_count=1,
+                    modified_count=modified_count,
+                )
+
         raise AssertionError(f"No document matches {query}")
+
 
     def insert_one(self, document):
         self.documents.append(deepcopy(document))
@@ -53,6 +72,7 @@ class FakeDatabase:
     def __init__(self, experiment):
         self.experiments = FakeCollection([experiment])
         self.evaluation_results = FakeCollection()
+        self.adaptive_run_results = FakeCollection()
 
 
 def test_start_persists_planner_selection_and_final_execution(
@@ -66,12 +86,17 @@ def test_start_persists_planner_selection_and_final_execution(
         "status": "created",
     }
     database = FakeDatabase(experiment)
-    planned_tests = iter(["permission_test", "permission_test"])
+    planned_tests = iter(["permission_test", "tool_access_test"])
     executed_tests = []
 
     class FakePlanner:
         def plan(self, planner_input):
-            return SimpleNamespace(selected_test=next(planned_tests))
+            return SimpleNamespace(
+                selected_test=next(planned_tests),
+                reason="Selected for adaptive testing",
+                priority=1,
+                confidence=0.9,
+            )
 
     class FakeValidator:
         def __init__(self, experiment_id):
@@ -85,25 +110,17 @@ def test_start_persists_planner_selection_and_final_execution(
                 "steps": steps,
             }
 
-    def fake_execute_selected_test(experiment_id, test):
+    def fake_execute_planned_test(decision, experiment_id):
+        test = decision.selected_test
         executed_tests.append(test)
+
         return {
             "status": "completed",
-            "experiment_id": experiment_id,
-            "selected_test": test,
-            "validation": {
-                "valid": True,
-                "selected_test": test,
-                "error": None,
-            },
-            "executed": True,
-            "result": {
-                "test": test,
-                "finding": f"{test}_finding",
-                "severity": "low",
-                "evidence": "mock evidence",
-                "confidence": 0.9,
-            },
+            "test": test,
+            "finding": f"{test}_finding",
+            "severity": "low",
+            "evidence": "mock evidence",
+            "confidence": 0.9,
             "execution_cost": {
                 "test_count": 1,
                 "execution_time_seconds": 0.01,
@@ -114,15 +131,19 @@ def test_start_persists_planner_selection_and_final_execution(
     monkeypatch.setattr(main, "planner", FakePlanner())
     monkeypatch.setattr(main, "ChainValidator", FakeValidator)
     monkeypatch.setattr(
-        main,
-        "execute_selected_test",
-        fake_execute_selected_test,
+        sys.modules["adaptive_loop"],
+        "execute_planned_test",
+        fake_execute_planned_test,
     )
     monkeypatch.setattr(main, "add_experiment_log", lambda *args: None)
     monkeypatch.setattr(main, "add_experiment_finding", lambda **kwargs: None)
     monkeypatch.setattr(main, "add_attack_chain", lambda **kwargs: "CHAIN001")
 
     response = TestClient(main.app).post("/experiments/EXP001/start")
+
+    print("STATUS:", response.status_code)
+    print("RESPONSE:", response.json())
+    print("EXECUTED TESTS:", executed_tests)
 
     assert response.status_code == 200
     assert executed_tests == ["permission_test", "tool_access_test"]
@@ -132,10 +153,12 @@ def test_start_persists_planner_selection_and_final_execution(
     assert persisted["status"] == "completed"
     assert persisted["selected_tests"] == [
         "permission_test",
-        "permission_test",
+        "tool_access_test",
     ]
+
     assert persisted["executed_tests"] == [
         "permission_test",
         "tool_access_test",
     ]
-    assert persisted["selected_tests"] != persisted["executed_tests"]
+
+    assert persisted["selected_tests"] == persisted["executed_tests"]

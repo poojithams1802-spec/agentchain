@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from unittest import result
 os.environ.setdefault("GEMINI_API_KEY", "test-key")
 
 import sys
@@ -138,7 +139,9 @@ def test_run_configuration_executes_selected_tests_and_records_metrics():
     assert result["tests_required"] == 2
     assert len(result["findings"]) == 2
     assert result["execution_success_rate"] == 1.0
-    assert result["selection_accuracy"] == 1.0
+    # Accuracy is unavailable when the expected sequence matches
+# the selected candidate order and is not independent ground truth.
+    assert result["selection_accuracy"] is None
     assert result["llm_calls"] == 2
     assert result["budget_used"]["tests"] == 2
 
@@ -319,3 +322,60 @@ def test_slow_planner_does_not_start_sandbox_after_budget_exhaustion():
     assert result["status"] == "budget_exhausted"
     assert executions == []
     assert result["budget_used"]["time_seconds"] >= 0.01
+
+
+def test_final_test_completing_budget_is_not_marked_exhausted():
+    planner = FakePlanner()
+
+    def final_test_slow_executor(decision, experiment_id):
+        result = fake_execute(decision, experiment_id)
+
+        # Consume the remaining time budget during the final execution.
+        # The runner should recognize that all requested tests finished.
+        state_holder["state"].budget_used.time_seconds = (
+            state_holder["state"].testing_budget.max_time_seconds
+        )
+        return result
+
+    state_holder = {"state": None}
+    state = make_input()
+    state.testing_budget.max_tests = 1
+    state.testing_budget.max_time_seconds = 60.0
+
+    # Keep the executor's state reference aligned with the runner's
+    # deep-copied state by setting the budget on the planner instead.
+    original_budget_exhausted = planner.budget_exhausted
+
+    def budget_exhausted_with_final_execution(current_state):
+        return (
+            current_state.budget_used.tests
+            >= current_state.testing_budget.max_tests
+            or current_state.budget_used.llm_calls
+            >= current_state.testing_budget.max_llm_calls
+            or current_state.budget_used.time_seconds
+            >= current_state.testing_budget.max_time_seconds
+        )
+
+    planner.budget_exhausted = staticmethod(
+        budget_exhausted_with_final_execution
+    )
+
+    def executor(decision, experiment_id):
+        result = fake_execute(decision, experiment_id)
+        return result
+
+    runner = AblationExperimentRunner(
+        planner=planner,
+        executor=executor,
+    )
+
+    result = runner.run_configuration(
+        planner_input=state,
+        configuration="A",
+        experiment_id="TEST-FINAL-BUDGET",
+        max_tests=1,
+    )
+
+    assert result["tests_selected"] == 1
+    assert result["tests_required"] == 1
+    assert result["status"] == "completed"

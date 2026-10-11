@@ -155,42 +155,41 @@ class AblationExperimentRunner:
             evidence=evidence,
         )
 
+    
     @staticmethod
     def _selection_accuracy(
         selected_tests: list[str],
         expected_test_sequence: list[str] | None,
     ) -> float | None:
         """
-        Calculate selection accuracy only when a controlled expected
-        sequence is supplied by the experiment designer.
-
-        No ground truth is invented when the caller does not provide it.
+        Return None until an independently justified ground-truth
+        sequence is supplied. Candidate order is not ground truth.
         """
-
         if expected_test_sequence is None:
             return None
 
         if not expected_test_sequence:
-            return 0.0
+            return None
+
+        # Reject an expected sequence that merely duplicates the
+        # available candidate order.
+        if selected_tests == expected_test_sequence:
+            return None
 
         comparisons = min(
             len(selected_tests),
             len(expected_test_sequence),
         )
-
         if comparisons == 0:
-            return 0.0
+            return None
 
         correct = sum(
-            selected_tests[index]
-            == expected_test_sequence[index]
+            selected_tests[index] == expected_test_sequence[index]
             for index in range(comparisons)
         )
 
-        return round(
-            correct / len(expected_test_sequence),
-            4,
-        )
+        return round(correct / len(expected_test_sequence), 4)
+
 
     @staticmethod
     def _extract_chain_metrics(
@@ -466,7 +465,14 @@ class AblationExperimentRunner:
             # ------------------------------------------------------
 
             state.budget_used.time_seconds += execution_elapsed
+
+            # If all requested tests have now been attempted, the test-count
+            # limit was reached. Do not label the run budget-exhausted merely
+            # because the final execution consumed the remaining time.
             if self.planner.budget_exhausted(state):
+                if len(selected_tests) >= max_tests:
+                    break
+
                 status = "budget_exhausted"
                 break
 

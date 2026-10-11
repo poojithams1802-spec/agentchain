@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest import runner
 
 AI_ENGINE_DIR = Path(__file__).resolve().parents[1]
 
@@ -66,11 +67,8 @@ def main() -> None:
     print("Output: results/phase3_ablation_gemini_20261011.json")
     print()
 
-    expected_test_sequence = [
-        "permission_test",
-        "tool_access_test",
-        "memory_access_test",
-    ]
+    # No independent ground-truth sequence has been established yet.
+    expected_test_sequence = None
 
     result = runner.run_suite(
         planner_input=planner_input,

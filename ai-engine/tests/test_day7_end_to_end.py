@@ -1,3 +1,4 @@
+
 from planner import AdaptivePlanner
 from schemas import Finding, PlannerDecision, PlannerInput
 from sandbox_adapter import execute_planned_test
@@ -35,8 +36,8 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
 
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        fake_first_generate_json,
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: fake_first_generate_json(prompt),
     )
 
     first_planner_input = PlannerInput(
@@ -48,20 +49,15 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
     first_decision = planner.plan(first_planner_input)
 
     assert isinstance(first_decision, PlannerDecision)
-
-    # Selected test must be one of the allowed tests.
     assert first_decision.selected_test in available_tests
-
-    # No previous tests exist, so the first selection must be new.
     assert first_decision.selected_test not in []
 
-    # Verify RAG was actually used.
+    # Verify RAG was used and its context reached the prompt.
     assert first_planner_input.retrieved_knowledge
-
     assert "retrieved_knowledge" in first_prompt["prompt"]
 
     # --------------------------------------------------
-    # Step 2: Execute first test in REAL P4 sandbox
+    # Step 2: Execute first test in P4 sandbox
     # --------------------------------------------------
     first_result = execute_planned_test(
         first_decision,
@@ -69,17 +65,12 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
     )
 
     assert first_result["status"] == "completed"
-
-    assert (
-        first_result["test"]
-        == first_decision.selected_test
-    )
-
+    assert first_result["test"] == first_decision.selected_test
     assert first_result["finding"]
     assert first_result["confidence"] == 1.0
 
     # --------------------------------------------------
-    # Step 3: Feed first finding into next planning
+    # Step 3: Feed first finding into next planning step
     # --------------------------------------------------
     planner_input = PlannerInput(
         findings=[
@@ -90,21 +81,12 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
                 evidence=str(first_result["evidence"]),
             )
         ],
-        previous_tests=[
-            first_decision.selected_test
-        ],
+        previous_tests=[first_decision.selected_test],
         available_tests=available_tests,
     )
 
-    # Verify the finding from the sandbox reached the
-    # next planner iteration.
     assert len(planner_input.findings) == 1
-
-    assert (
-        planner_input.findings[0].finding
-        == first_result["finding"]
-    )
-
+    assert planner_input.findings[0].finding == first_result["finding"]
     assert (
         planner_input.findings[0].confidence
         == first_result["confidence"]
@@ -112,7 +94,7 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
 
     # --------------------------------------------------
     # Step 4: Mock second LLM response
-    #         RAG remains REAL
+    # RAG remains real
     # --------------------------------------------------
     captured_second_prompt = {}
 
@@ -129,41 +111,24 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
             "confidence": 0.9,
         }
 
+    # IMPORTANT: use the second response function here.
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        fake_second_generate_json,
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: fake_second_generate_json(prompt),
     )
 
     # --------------------------------------------------
-    # Step 5: Second RAG + Adaptive Planner iteration
+    # Step 5: Second RAG + adaptive planner iteration
     # --------------------------------------------------
     second_decision = planner.plan(planner_input)
 
-    assert isinstance(
-        second_decision,
-        PlannerDecision,
-    )
+    assert isinstance(second_decision, PlannerDecision)
+    assert second_decision.selected_test in planner_input.available_tests
+    assert second_decision.selected_test not in planner_input.previous_tests
+    assert second_decision.selected_test != first_decision.selected_test
 
-    # Selected test must be allowed.
-    assert (
-        second_decision.selected_test
-        in planner_input.available_tests
-    )
-
-    # Selected test must not already have been executed.
-    assert (
-        second_decision.selected_test
-        not in planner_input.previous_tests
-    )
-
-    # Adaptive planning must select a different test.
-    assert (
-        second_decision.selected_test
-        != first_decision.selected_test
-    )
-
-    # RAG should still be active in the second iteration.
+    # RAG should remain active in the second iteration.
     assert planner_input.retrieved_knowledge
 
     retrieved_text = " ".join(
@@ -175,20 +140,15 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
         or "authorization" in retrieved_text
     )
 
-    # Retrieved knowledge must reach the planner prompt.
-    assert (
-        "retrieved_knowledge"
-        in captured_second_prompt["prompt"]
-    )
-
-    # The previous finding must also reach the planner prompt.
+    # Retrieved knowledge and the previous finding must reach the prompt.
+    assert "retrieved_knowledge" in captured_second_prompt["prompt"]
     assert (
         first_result["finding"]
         in captured_second_prompt["prompt"]
     )
 
     # --------------------------------------------------
-    # Step 6: Execute second test in REAL P4 sandbox
+    # Step 6: Execute second test in P4 sandbox
     # --------------------------------------------------
     second_result = execute_planned_test(
         second_decision,
@@ -196,18 +156,12 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
     )
 
     assert second_result["status"] == "completed"
-
-    assert (
-        second_result["test"]
-        == second_decision.selected_test
-    )
-
+    assert second_result["test"] == second_decision.selected_test
     assert second_result["finding"]
     assert second_result["confidence"] == 1.0
 
     # --------------------------------------------------
-    # Step 7: Build candidate chain from actual
-    #         planner decisions
+    # Step 7: Build candidate chain from planner decisions
     # --------------------------------------------------
     candidate_chain = [
         first_decision.selected_test,
@@ -218,7 +172,6 @@ def test_day7_end_to_end_adaptive_security_flow(monkeypatch):
         "permission_test",
         "tool_access_test",
     ]
-
     assert len(candidate_chain) == 2
     assert len(set(candidate_chain)) == 2
 

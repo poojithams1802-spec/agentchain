@@ -152,8 +152,8 @@ def test_plan_respects_rag_ablation(monkeypatch):
 
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        fake_generate_json,
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: fake_generate_json(prompt),
     )
 
     input_a = make_planner_input()
@@ -198,10 +198,9 @@ def test_plan_respects_chain_ablation(monkeypatch):
 
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        fake_generate_json,
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: fake_generate_json(prompt),
     )
-
     input_a = make_planner_input()
     planner.plan(
         input_a,
@@ -245,8 +244,8 @@ def test_ablation_suite_runs_all_four_modes(monkeypatch):
 
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        fake_generate_json,
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: fake_generate_json(prompt),
     )
 
     planner_input = make_planner_input()

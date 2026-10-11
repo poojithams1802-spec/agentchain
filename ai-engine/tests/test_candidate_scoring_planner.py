@@ -593,8 +593,8 @@ def test_plan_uses_candidate_selection_layer(monkeypatch):
 
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        lambda prompt: {
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: {
             "selected_test": "tool_access_test",
             "reason": "Tool access should be checked.",
             "priority": 0.8,
@@ -873,15 +873,12 @@ def test_rag_to_candidate_scoring_to_planner_flow(monkeypatch):
     # Make the LLM return a valid candidate.
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        lambda prompt: {
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: {
             "selected_test": "tool_access_test",
-            "reason": (
-                "Tool access should be investigated "
-                "after the permission weakness."
-            ),
-            "priority": 0.9,
-            "confidence": 0.95,
+            "reason": "Tool access should be checked.",
+            "priority": 0.8,
+            "confidence": 0.9,
         },
     )
 

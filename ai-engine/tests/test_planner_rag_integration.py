@@ -51,8 +51,8 @@ def test_planner_populates_retrieved_knowledge(monkeypatch):
 
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        fake_generate_json,
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: fake_generate_json(prompt),
     )
 
     planner.plan(planner_input)

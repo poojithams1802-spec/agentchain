@@ -20,8 +20,8 @@ def test_finding_drives_rag_context_for_next_planning_step(monkeypatch):
 
     monkeypatch.setattr(
         planner.llm_client,
-        "generate_json",
-        fake_generate_json,
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: fake_generate_json(prompt),
     )
 
     planner_input = PlannerInput(

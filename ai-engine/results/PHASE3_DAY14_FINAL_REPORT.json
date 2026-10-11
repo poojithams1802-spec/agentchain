@@ -1,0 +1,129 @@
+{
+  "report_date": "2026-10-11T20:18:41.030176+05:30",
+  "phase": "AgentChain Phase 3",
+  "regression_tests": {
+    "passed": 249,
+    "failed": 0,
+    "status": "PASS",
+    "note": "Recorded from the user's reported pytest output."
+  },
+  "p2_p3_integration": {
+    "passed": 1,
+    "failed": 0,
+    "status": "PASS"
+  },
+  "p3_p4_e2e": {
+    "scenarios": 3,
+    "correct_fallback_selections": 3,
+    "mitigations_applied": 3,
+    "attacks_disrupted": 3,
+    "residual_vulnerable_steps": 0,
+    "fallback_cases": 3,
+    "status": "COMPLETED_WITH_FALLBACK",
+    "log": "logs/p3_p4_e2e_experiments.jsonl"
+  },
+  "day14_adaptive_run": {
+    "test_sequence": [
+      "permission_test",
+      "tool_access_test",
+      "memory_access_test"
+    ],
+    "timing": {
+      "total_runtime_seconds": 4.092751900025178,
+      "total_planning_time_seconds": 4.060299200005829,
+      "planning_latency_seconds": [
+        1.495111900032498,
+        1.2136574999894947,
+        1.3515297999838367
+      ],
+      "total_sandbox_adapter_time_seconds": 0.03220989997498691,
+      "sandbox_adapter_latency_seconds": [
+        0.032049399975221604,
+        3.8700003642588854e-05,
+        0.00012179999612271786
+      ],
+      "experiment_loop_runtime_seconds": 4.092831499991007,
+      "timing_scope": {
+        "total_runtime_seconds": "Time measured inside AdaptiveLoop.run_detailed.",
+        "total_planning_time_seconds": "Sum of complete planner.plan calls, including retrieval and LLM request time.",
+        "total_sandbox_adapter_time_seconds": "Sum of execute_planned_test adapter call durations.",
+        "experiment_loop_runtime_seconds": "Wall-clock time around the complete run_detailed call."
+      }
+    },
+    "fallback_used": true,
+    "llm_calls_used": 3
+  },
+  "day14_validation_file_exists": true,
+  "day14_evaluation": {
+    "experiment_id": "DAY14_FINAL",
+    "adaptive": {
+      "status": "completed",
+      "experiment_id": "DAY14_FINAL",
+      "adaptive_sequence": [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test"
+      ],
+      "evaluation": {
+        "mode": "adaptive",
+        "experiment_id": "DAY14_FINAL",
+        "total_tests": 3,
+        "total_findings": 3,
+        "candidate_chains": 1,
+        "validated_chains": 1,
+        "average_chain_length": 3.0,
+        "validation_rate": 1.0,
+        "execution_cost": {
+          "test_count": 3,
+          "execution_time_seconds": 3.339996328577399e-05
+        }
+      }
+    },
+    "static": {
+      "status": "completed",
+      "experiment_id": "DAY14_FINAL",
+      "chain_id": "DAY14_FINAL",
+      "evaluation": {
+        "mode": "static",
+        "experiment_id": "DAY14_FINAL",
+        "total_tests": 3,
+        "total_findings": 3,
+        "candidate_chains": 1,
+        "validated_chains": 1,
+        "average_chain_length": 3,
+        "validation_rate": 1.0,
+        "execution_cost": {
+          "test_count": 3,
+          "execution_time_seconds": 2.6800029445439577e-05
+        }
+      }
+    },
+    "comparison": {
+      "total_tests_difference": 0,
+      "total_findings_difference": 0,
+      "candidate_chains_difference": 0,
+      "validated_chains_difference": 0,
+      "average_chain_length_difference": 0.0,
+      "validation_rate_difference": 0.0,
+      "static_execution_test_count": 3,
+      "adaptive_execution_test_count": 3,
+      "execution_test_count_difference": 0,
+      "static_execution_time_seconds": 2.6800029445439577e-05,
+      "adaptive_execution_time_seconds": 3.339996328577399e-05,
+      "execution_time_difference_seconds": 6.5999338403344154e-06,
+      "static_execution_results_available": true,
+      "adaptive_execution_results_available": true
+    }
+  },
+  "limitations": [
+    "Gemini requests were rejected because of the free-tier quota.",
+    "P3/P4 demo selections used fallback, not successful Gemini reasoning.",
+    "The recorded Day 14 run is a single sample and does not establish that adaptive testing outperforms static testing.",
+    "Gemini-backed A/B/C/D comparisons remain pending."
+  ],
+  "next_steps": [
+    "Check Gemini API availability.",
+    "Run comparable llm_only, llm_rag, llm_chain, and llm_rag_chain experiments.",
+    "Analyze the resulting metrics and document limitations."
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "experiment_id": "DAY14_FINAL",
+  "adaptive": {
+    "status": "completed",
+    "experiment_id": "DAY14_FINAL",
+    "adaptive_sequence": [
+      "permission_test",
+      "tool_access_test",
+      "memory_access_test"
+    ],
+    "evaluation": {
+      "mode": "adaptive",
+      "experiment_id": "DAY14_FINAL",
+      "total_tests": 3,
+      "total_findings": 3,
+      "candidate_chains": 1,
+      "validated_chains": 1,
+      "average_chain_length": 3.0,
+      "validation_rate": 1.0,
+      "execution_cost": {
+        "test_count": 3,
+        "execution_time_seconds": 3.339996328577399e-05
+      }
+    }
+  },
+  "static": {
+    "status": "completed",
+    "experiment_id": "DAY14_FINAL",
+    "chain_id": "DAY14_FINAL",
+    "evaluation": {
+      "mode": "static",
+      "experiment_id": "DAY14_FINAL",
+      "total_tests": 3,
+      "total_findings": 3,
+      "candidate_chains": 1,
+      "validated_chains": 1,
+      "average_chain_length": 3,
+      "validation_rate": 1.0,
+      "execution_cost": {
+        "test_count": 3,
+        "execution_time_seconds": 2.6800029445439577e-05
+      }
+    }
+  },
+  "comparison": {
+    "total_tests_difference": 0,
+    "total_findings_difference": 0,
+    "candidate_chains_difference": 0,
+    "validated_chains_difference": 0,
+    "average_chain_length_difference": 0.0,
+    "validation_rate_difference": 0.0,
+    "static_execution_test_count": 3,
+    "adaptive_execution_test_count": 3,
+    "execution_test_count_difference": 0,
+    "static_execution_time_seconds": 2.6800029445439577e-05,
+    "adaptive_execution_time_seconds": 3.339996328577399e-05,
+    "execution_time_difference_seconds": 6.5999338403344154e-06,
+    "static_execution_results_available": true,
+    "adaptive_execution_results_available": true
+  }
+}

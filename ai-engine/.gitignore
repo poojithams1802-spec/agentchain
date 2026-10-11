@@ -1,3 +1,4 @@
+
 # ============================================================
 # Python
 # ============================================================
@@ -69,6 +70,13 @@ desktop.ini
 # ============================================================
 
 results/
+
+# Share the original Day 14 evaluation artifacts with P4.
+# Keep other generated result files ignored.
+!results/
+!results/DAY14_FINAL_backup.json
+!results/DAY14_FINAL_validation.json
+!results/DAY14_FINAL_evaluation.json
 
 # ============================================================
 # Logs

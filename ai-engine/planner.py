@@ -2439,15 +2439,35 @@ Do not include additional explanation.
                     ),
                 )
 
-            timeout_ms = max(
-                1,
-                min(
-                    self.llm_client.REQUEST_TIMEOUT_MS
-                    if hasattr(self.llm_client, "REQUEST_TIMEOUT_MS")
-                    else 20_000,
-                    int(remaining_seconds * 1000),
-                ),
+
+            # Gemini rejects request deadlines below 10 seconds.
+            # Avoid spending an LLM call on a request that cannot be accepted.
+            minimum_timeout_ms = 10_000
+
+            configured_timeout_ms = getattr(
+                self.llm_client,
+                "REQUEST_TIMEOUT_MS",
+                20_000,
             )
+
+            timeout_ms = min(
+                configured_timeout_ms,
+                int(remaining_seconds * 1000),
+            )
+
+            if timeout_ms < minimum_timeout_ms:
+                return self.fallback_decision(
+                    planner_input,
+                    reason=(
+                        "Insufficient remaining time for Gemini's "
+                        "minimum 10-second request deadline."
+                    ),
+                    **(
+                        {}
+                        if legacy_default_call
+                        else {"configuration": config}
+                    ),
+                )
 
             generate_with_timeout = getattr(
                 self.llm_client,
@@ -2461,9 +2481,9 @@ Do not include additional explanation.
                     timeout_ms=timeout_ms,
                 )
             else:
-                # Compatibility with existing fake clients and test doubles.
                 response_data = self.llm_client.generate_json(prompt)
 
+            
             decision = self.validate_decision(
                 response_data,
                 planner_input
@@ -2590,13 +2610,12 @@ Do not include additional explanation.
                 }
             )
 
-        if (
-            status == "completed"
-            and self.budget_exhausted(state)
-            and len(decisions) < max_steps
-        ):
-            status = "budget_exhausted"
-
+        if status == "completed" and len(decisions) < max_steps:
+            status = (
+                "budget_exhausted"
+                if self.budget_exhausted(state)
+                else "incomplete"
+            )
         return {
             "configuration": config.model_dump(),
             "status": status,

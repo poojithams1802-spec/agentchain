@@ -1,0 +1,543 @@
+{
+  "study": "phase3_ablation",
+  "runner_scope": "planner_plus_sandbox",
+  "same_initial_state": true,
+  "configuration_order": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "experiment_ids": {
+    "A": "GEMINI-ABL-A-20261011",
+    "B": "GEMINI-ABL-B-20261011",
+    "C": "GEMINI-ABL-C-20261011",
+    "D": "GEMINI-ABL-D-20261011"
+  },
+  "results": [
+    {
+      "experiment_id": "GEMINI-ABL-A-20261011",
+      "study": "phase3_ablation",
+      "configuration": {
+        "config_id": "A",
+        "name": "llm_only",
+        "use_rag": false,
+        "use_chain_context": false,
+        "description": "LLM reasoning over the common planner state without security RAG or attack-chain context."
+      },
+      "runner_scope": "planner_plus_sandbox",
+      "status": "budget_exhausted",
+      "tests_requested": 3,
+      "tests_required": 3,
+      "tests_selected": 3,
+      "selected_tests": [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test"
+      ],
+      "decisions": [
+        {
+          "step": 1,
+          "selected_test": "permission_test",
+          "reason": "Starting baseline security assessment with permission_test as no previous tests have been executed.",
+          "priority": 0.8,
+          "confidence": 0.9,
+          "planner_time_seconds": 21.925963
+        },
+        {
+          "step": 2,
+          "selected_test": "tool_access_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation A fallback: 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Manually set deadline 9s is too short. Minimum allowed deadline is 10s.', 'status': 'INVALID_ARGUMENT'}}",
+          "priority": 0.8889,
+          "confidence": 0.1,
+          "planner_time_seconds": 1.198041
+        },
+        {
+          "step": 3,
+          "selected_test": "memory_access_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation A fallback: 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Manually set deadline 7s is too short. Minimum allowed deadline is 10s.', 'status': 'INVALID_ARGUMENT'}}",
+          "priority": 0.8524,
+          "confidence": 0.1,
+          "planner_time_seconds": 1.429805
+        }
+      ],
+      "findings": [
+        {
+          "finding": "weak_permission_control",
+          "severity": "high",
+          "confidence": 1.0,
+          "evidence": "{'permission': 'DENIED', 'observed_behavior': 'TOOL_ALLOWED'}"
+        },
+        {
+          "finding": "unsafe_tool_access",
+          "severity": "high",
+          "confidence": 1.0,
+          "evidence": "{'expected': 'Tool should not be exposed.', 'actual': 'Tool was exposed to the agent.'}"
+        },
+        {
+          "finding": "memory_validation_weakness",
+          "severity": "medium",
+          "confidence": 1.0,
+          "evidence": "{'expected': 'Memory input should be validated.', 'actual': 'Memory input was accepted without validation.'}"
+        }
+      ],
+      "execution_records": [
+        {
+          "step": 1,
+          "test": "permission_test",
+          "status": "completed",
+          "finding": "weak_permission_control",
+          "severity": "high",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.034204,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        },
+        {
+          "step": 2,
+          "test": "tool_access_test",
+          "status": "completed",
+          "finding": "unsafe_tool_access",
+          "severity": "high",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.000146,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        },
+        {
+          "step": 3,
+          "test": "memory_access_test",
+          "status": "completed",
+          "finding": "memory_validation_weakness",
+          "severity": "medium",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.000151,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        }
+      ],
+      "errors": [],
+      "selection_accuracy": null,
+      "execution_success_rate": 1.0,
+      "llm_calls": 3,
+      "fallback_used": true,
+      "planner_time_seconds": 24.553809,
+      "execution_time_seconds": 0.034501,
+      "total_time_seconds": 24.58893,
+      "budget_used": {
+        "tests": 3,
+        "llm_calls": 3,
+        "time_seconds": 24.588310799968895
+      },
+      "remaining_budget": {
+        "tests": 0,
+        "llm_calls": 1,
+        "time_seconds": 5.411689200031105
+      },
+      "chain_metrics": {
+        "candidate_chains": [],
+        "validated_chains": [],
+        "validation_rate": null,
+        "chain_disrupted": null,
+        "residual_vulnerable_steps": []
+      },
+      "mitigation_metrics": {
+        "mitigation_controls_observed": [],
+        "mitigation_applied_count": 0
+      }
+    },
+    {
+      "experiment_id": "GEMINI-ABL-B-20261011",
+      "study": "phase3_ablation",
+      "configuration": {
+        "config_id": "B",
+        "name": "llm_rag",
+        "use_rag": true,
+        "use_chain_context": false,
+        "description": "LLM reasoning augmented with retrieved security knowledge, without attack-chain context."
+      },
+      "runner_scope": "planner_plus_sandbox",
+      "status": "budget_exhausted",
+      "tests_requested": 3,
+      "tests_required": 3,
+      "tests_selected": 3,
+      "selected_tests": [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test"
+      ],
+      "decisions": [
+        {
+          "step": 1,
+          "selected_test": "permission_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation B fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
+          "priority": 0.61,
+          "confidence": 0.1,
+          "planner_time_seconds": 8.894748
+        },
+        {
+          "step": 2,
+          "selected_test": "tool_access_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation B fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
+          "priority": 0.9075,
+          "confidence": 0.1,
+          "planner_time_seconds": 3.105908
+        },
+        {
+          "step": 3,
+          "selected_test": "memory_access_test",
+          "reason": "It is the only remaining unexecuted test in available_tests, necessary to complete the security assessment within the remaining budget.",
+          "priority": 0.8,
+          "confidence": 0.95,
+          "planner_time_seconds": 8.96166
+        }
+      ],
+      "findings": [
+        {
+          "finding": "weak_permission_control",
+          "severity": "high",
+          "confidence": 1.0,
+          "evidence": "{'permission': 'DENIED', 'observed_behavior': 'TOOL_ALLOWED'}"
+        },
+        {
+          "finding": "unsafe_tool_access",
+          "severity": "high",
+          "confidence": 1.0,
+          "evidence": "{'expected': 'Tool should not be exposed.', 'actual': 'Tool was exposed to the agent.'}"
+        },
+        {
+          "finding": "memory_validation_weakness",
+          "severity": "medium",
+          "confidence": 1.0,
+          "evidence": "{'expected': 'Memory input should be validated.', 'actual': 'Memory input was accepted without validation.'}"
+        }
+      ],
+      "execution_records": [
+        {
+          "step": 1,
+          "test": "permission_test",
+          "status": "completed",
+          "finding": "weak_permission_control",
+          "severity": "high",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.000137,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        },
+        {
+          "step": 2,
+          "test": "tool_access_test",
+          "status": "completed",
+          "finding": "unsafe_tool_access",
+          "severity": "high",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.000138,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        },
+        {
+          "step": 3,
+          "test": "memory_access_test",
+          "status": "completed",
+          "finding": "memory_validation_weakness",
+          "severity": "medium",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.000118,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        }
+      ],
+      "errors": [],
+      "selection_accuracy": null,
+      "execution_success_rate": 1.0,
+      "llm_calls": 3,
+      "fallback_used": true,
+      "planner_time_seconds": 20.962317,
+      "execution_time_seconds": 0.000393,
+      "total_time_seconds": 20.963156,
+      "budget_used": {
+        "tests": 3,
+        "llm_calls": 3,
+        "time_seconds": 20.96270990004996
+      },
+      "remaining_budget": {
+        "tests": 0,
+        "llm_calls": 1,
+        "time_seconds": 9.037290099950042
+      },
+      "chain_metrics": {
+        "candidate_chains": [],
+        "validated_chains": [],
+        "validation_rate": null,
+        "chain_disrupted": null,
+        "residual_vulnerable_steps": []
+      },
+      "mitigation_metrics": {
+        "mitigation_controls_observed": [],
+        "mitigation_applied_count": 0
+      }
+    },
+    {
+      "experiment_id": "GEMINI-ABL-C-20261011",
+      "study": "phase3_ablation",
+      "configuration": {
+        "config_id": "C",
+        "name": "llm_chain",
+        "use_rag": false,
+        "use_chain_context": true,
+        "description": "LLM reasoning augmented with controlled attack-chain context, without security RAG."
+      },
+      "runner_scope": "planner_plus_sandbox",
+      "status": "budget_exhausted",
+      "tests_requested": 3,
+      "tests_required": 3,
+      "tests_selected": 3,
+      "selected_tests": [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test"
+      ],
+      "decisions": [
+        {
+          "step": 1,
+          "selected_test": "permission_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
+          "priority": 0.61,
+          "confidence": 0.1,
+          "planner_time_seconds": 8.474518
+        },
+        {
+          "step": 2,
+          "selected_test": "tool_access_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
+          "priority": 0.9075,
+          "confidence": 0.1,
+          "planner_time_seconds": 17.801574
+        },
+        {
+          "step": 3,
+          "selected_test": "memory_access_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Manually set deadline 4s is too short. Minimum allowed deadline is 10s.', 'status': 'INVALID_ARGUMENT'}}",
+          "priority": 0.8399,
+          "confidence": 0.1,
+          "planner_time_seconds": 1.236983
+        }
+      ],
+      "findings": [
+        {
+          "finding": "weak_permission_control",
+          "severity": "high",
+          "confidence": 1.0,
+          "evidence": "{'permission': 'DENIED', 'observed_behavior': 'TOOL_ALLOWED'}"
+        },
+        {
+          "finding": "unsafe_tool_access",
+          "severity": "high",
+          "confidence": 1.0,
+          "evidence": "{'expected': 'Tool should not be exposed.', 'actual': 'Tool was exposed to the agent.'}"
+        },
+        {
+          "finding": "memory_validation_weakness",
+          "severity": "medium",
+          "confidence": 1.0,
+          "evidence": "{'expected': 'Memory input should be validated.', 'actual': 'Memory input was accepted without validation.'}"
+        }
+      ],
+      "execution_records": [
+        {
+          "step": 1,
+          "test": "permission_test",
+          "status": "completed",
+          "finding": "weak_permission_control",
+          "severity": "high",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.000115,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        },
+        {
+          "step": 2,
+          "test": "tool_access_test",
+          "status": "completed",
+          "finding": "unsafe_tool_access",
+          "severity": "high",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.000109,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        },
+        {
+          "step": 3,
+          "test": "memory_access_test",
+          "status": "completed",
+          "finding": "memory_validation_weakness",
+          "severity": "medium",
+          "confidence": 1.0,
+          "execution_time_seconds": 0.000147,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        }
+      ],
+      "errors": [],
+      "selection_accuracy": null,
+      "execution_success_rate": 1.0,
+      "llm_calls": 3,
+      "fallback_used": true,
+      "planner_time_seconds": 27.513075,
+      "execution_time_seconds": 0.000372,
+      "total_time_seconds": 27.51386,
+      "budget_used": {
+        "tests": 3,
+        "llm_calls": 3,
+        "time_seconds": 27.513446499826387
+      },
+      "remaining_budget": {
+        "tests": 0,
+        "llm_calls": 1,
+        "time_seconds": 2.4865535001736134
+      },
+      "chain_metrics": {
+        "candidate_chains": [],
+        "validated_chains": [],
+        "validation_rate": null,
+        "chain_disrupted": null,
+        "residual_vulnerable_steps": []
+      },
+      "mitigation_metrics": {
+        "mitigation_controls_observed": [],
+        "mitigation_applied_count": 0
+      }
+    },
+    {
+      "experiment_id": "GEMINI-ABL-D-20261011",
+      "study": "phase3_ablation",
+      "configuration": {
+        "config_id": "D",
+        "name": "llm_rag_chain",
+        "use_rag": true,
+        "use_chain_context": true,
+        "description": "Full proposed planner using both retrieved security knowledge and controlled attack-chain context."
+      },
+      "runner_scope": "planner_plus_sandbox",
+      "status": "budget_exhausted",
+      "tests_requested": 3,
+      "tests_required": 3,
+      "tests_selected": 3,
+      "selected_tests": [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test"
+      ],
+      "decisions": [
+        {
+          "step": 1,
+          "selected_test": "permission_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation D fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
+          "priority": 0.61,
+          "confidence": 0.1,
+          "planner_time_seconds": 7.018885
+        },
+        {
+          "step": 2,
+          "selected_test": "tool_access_test",
+          "reason": "The tool_access_test is the next unexecuted step in the chain dependency following permission_test, with high relevance and candidate score.",
+          "priority": 0.9,
+          "confidence": 0.95,
+          "planner_time_seconds": 16.49916
+        },
+        {
+          "step": 3,
+          "selected_test": "memory_access_test",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation D fallback: 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Manually set deadline 7s is too short. Minimum allowed deadline is 10s.', 'status': 'INVALID_ARGUMENT'}}",
+          "priority": 0.8509,
+          "confidence": 0.1,
+          "planner_time_seconds": 1.404947
+        }
+      ],
+      "findings": [
+        {
+          "finding": "weak_permission_control",
+          "severity": "high",
+          "confidence": 1.0,
+          "evidence": "{'permission': 'DENIED', 'observed_behavior': 'TOOL_ALLOWED'}"
+        },
+        {
+          "finding": "unsafe_tool_access",
+          "severity": "high",
+          "confidence": 1.0,
+          "evidence": "{'expected': 'Tool should not be exposed.', 'actual': 'Tool was exposed to the agent.'}"
+        },
+        {
+          "finding": "memory_validation_weakness",
+          "severity": "medium",
+          "confidence": 1.0,
+          "evidence": "{'expected': 'Memory input should be validated.', 'actual': 'Memory input was accepted without validation.'}"
+        }
+      ],
+      "execution_records": [
+        {
+          "step": 1,
+          "test": "permission_test",
+          "status": "completed",
+          "finding": "weak_permission_control",
+          "severity": "high",
+          "confidence": 1.0,
+          "execution_time_seconds": 5.1e-05,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        },
+        {
+          "step": 2,
+          "test": "tool_access_test",
+          "status": "completed",
+          "finding": "unsafe_tool_access",
+          "severity": "high",
+          "confidence": 1.0,
+          "execution_time_seconds": 7.4e-05,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        },
+        {
+          "step": 3,
+          "test": "memory_access_test",
+          "status": "completed",
+          "finding": "memory_validation_weakness",
+          "severity": "medium",
+          "confidence": 1.0,
+          "execution_time_seconds": 9.1e-05,
+          "mitigation_applied": null,
+          "mitigation_control": null
+        }
+      ],
+      "errors": [],
+      "selection_accuracy": null,
+      "execution_success_rate": 1.0,
+      "llm_calls": 3,
+      "fallback_used": true,
+      "planner_time_seconds": 24.922991,
+      "execution_time_seconds": 0.000217,
+      "total_time_seconds": 24.923452,
+      "budget_used": {
+        "tests": 3,
+        "llm_calls": 3,
+        "time_seconds": 24.923208000021987
+      },
+      "remaining_budget": {
+        "tests": 0,
+        "llm_calls": 1,
+        "time_seconds": 5.076791999978013
+      },
+      "chain_metrics": {
+        "candidate_chains": [],
+        "validated_chains": [],
+        "validation_rate": null,
+        "chain_disrupted": null,
+        "residual_vulnerable_steps": []
+      },
+      "mitigation_metrics": {
+        "mitigation_controls_observed": [],
+        "mitigation_applied_count": 0
+      }
+    }
+  ]
+}

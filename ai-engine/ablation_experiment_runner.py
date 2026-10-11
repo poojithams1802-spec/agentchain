@@ -484,12 +484,12 @@ class AblationExperimentRunner:
         if state.budget_used.time_seconds < measured_time:
             state.budget_used.time_seconds = measured_time
 
-        if (
-            status == "completed"
-            and self.planner.budget_exhausted(state)
-            and len(selected_tests) < max_tests
-        ):
-            status = "budget_exhausted"
+        if status == "completed" and len(selected_tests) < max_tests:
+            status = (
+                "budget_exhausted"
+                if self.planner.budget_exhausted(state)
+                else "incomplete"
+            )
 
         chain_metrics = self._extract_chain_metrics(
             state
@@ -514,6 +514,18 @@ class AblationExperimentRunner:
                 decision.get("reason", "")
             ).lower()
             for decision in decisions
+        )
+
+        fallback_decisions = sum(
+            1
+            for decision in decisions
+            if "fallback" in str(
+                decision.get("reason", "")
+            ).lower()
+        )
+
+        non_fallback_decisions = (
+            len(decisions) - fallback_decisions
         )
 
         return {
@@ -543,6 +555,8 @@ class AblationExperimentRunner:
             ),
             "llm_calls": state.budget_used.llm_calls,
             "fallback_used": fallback_used,
+            "fallback_decisions": fallback_decisions,
+            "non_fallback_decisions": non_fallback_decisions,
             "planner_time_seconds": round(
                 planner_time_seconds,
                 6,

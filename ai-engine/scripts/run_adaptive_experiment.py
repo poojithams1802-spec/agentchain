@@ -90,6 +90,7 @@ class TracingPlanner:
         return decision
 
 
+
 # ============================================================
 # BUILD STRUCTURED EXPERIMENT RESULT
 # ============================================================
@@ -99,14 +100,11 @@ def build_experiment_result(
     planner,
     planner_input,
     findings,
+    execution_results=None,
 ) -> dict:
     return {
         "experiment_id": experiment_id,
-
-        "test_sequence": list(
-            planner_input.previous_tests
-        ),
-
+        "test_sequence": list(planner_input.previous_tests),
         "finding_sequence": [
             {
                 "finding": finding.finding,
@@ -116,18 +114,10 @@ def build_experiment_result(
             }
             for finding in findings
         ],
-
-        "planner_trace": list(
-            planner.traces
-        ),
-
-        "tests_executed": len(
-            planner_input.previous_tests
-        ),
-
-        "findings_count": len(
-            findings
-        ),
+        "planner_trace": list(planner.traces),
+        "execution_results": execution_results or [],
+        "tests_executed": len(planner_input.previous_tests),
+        "findings_count": len(findings),
     }
 
 
@@ -367,14 +357,15 @@ def run_experiment(
     # Run adaptive experiment
     # --------------------------------------------------------
 
-    findings = loop.run(
 
+    detailed_result = loop.run_detailed(
         planner_input=planner_input,
-
         experiment_id=experiment_id,
-
         max_tests=3,
     )
+
+    findings = detailed_result["findings"]
+    execution_results = detailed_result["execution_results"]
 
     # --------------------------------------------------------
     # Print individual findings

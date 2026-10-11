@@ -654,11 +654,10 @@ def replay_mitigation_run(
             status_code=409,
             detail="Mitigation run has an invalid selected control",
         ) from error
-
+    
     application = mitigation_run.get("application")
     if (
-        mitigation_run.get("status") != "applied"
-        or not isinstance(application, dict)
+        not isinstance(application, dict)
         or application.get("status") != "applied"
     ):
         raise HTTPException(

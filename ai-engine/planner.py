@@ -2423,11 +2423,46 @@ Do not include additional explanation.
 
             planner_input.budget_used.llm_calls += 1
 
-            response_data = (
-                self.llm_client.generate_json(
-                    prompt
-                )
+            remaining_seconds = (
+                planner_input.testing_budget.max_time_seconds
+                - planner_input.budget_used.time_seconds
             )
+
+            if remaining_seconds <= 0:
+                return self.fallback_decision(
+                    planner_input,
+                    reason="Time budget exhausted before the LLM request.",
+                    **(
+                        {}
+                        if legacy_default_call
+                        else {"configuration": config}
+                    ),
+                )
+
+            timeout_ms = max(
+                1,
+                min(
+                    self.llm_client.REQUEST_TIMEOUT_MS
+                    if hasattr(self.llm_client, "REQUEST_TIMEOUT_MS")
+                    else 20_000,
+                    int(remaining_seconds * 1000),
+                ),
+            )
+
+            generate_with_timeout = getattr(
+                self.llm_client,
+                "generate_json_with_timeout",
+                None,
+            )
+
+            if callable(generate_with_timeout):
+                response_data = generate_with_timeout(
+                    prompt,
+                    timeout_ms=timeout_ms,
+                )
+            else:
+                # Compatibility with existing fake clients and test doubles.
+                response_data = self.llm_client.generate_json(prompt)
 
             decision = self.validate_decision(
                 response_data,

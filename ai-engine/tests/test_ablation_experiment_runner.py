@@ -277,3 +277,45 @@ def test_real_planner_can_be_used_with_a_deterministic_plan_method(monkeypatch):
     assert result["configuration"]["config_id"] == "D"
     assert result["tests_selected"] == 2
     assert result["llm_calls"] == 2
+
+
+def test_slow_planner_does_not_start_sandbox_after_budget_exhaustion():
+    planner = FakePlanner()
+    executions = []
+
+    def slow_plan(state, configuration=None):
+        import time
+        time.sleep(0.05)
+        state.budget_used.llm_calls += 1
+
+        return PlannerDecision(
+            selected_test="permission_test",
+            reason="Controlled slow decision.",
+            priority=0.9,
+            confidence=1.0,
+        )
+
+    planner.plan = slow_plan
+
+    def recording_executor(decision, experiment_id):
+        executions.append(decision.selected_test)
+        return fake_execute(decision, experiment_id)
+
+    state = make_input()
+    state.testing_budget.max_time_seconds = 0.01
+
+    runner = AblationExperimentRunner(
+        planner=planner,
+        executor=recording_executor,
+    )
+
+    result = runner.run_configuration(
+        planner_input=state,
+        configuration="A",
+        experiment_id="TEST-SLOW-PLANNER",
+        max_tests=2,
+    )
+
+    assert result["status"] == "budget_exhausted"
+    assert executions == []
+    assert result["budget_used"]["time_seconds"] >= 0.01

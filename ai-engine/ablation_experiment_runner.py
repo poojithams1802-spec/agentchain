@@ -334,14 +334,24 @@ class AblationExperimentRunner:
                 status = "failed"
                 break
 
+            
             planner_elapsed = (
                 time.perf_counter() - planner_start
             )
             planner_time_seconds += planner_elapsed
 
+            # Charge planner time immediately, before starting sandbox execution.
+            state.budget_used.time_seconds += planner_elapsed
+
+            # Do not start a sandbox test if planning exhausted the time budget.
+            if self.planner.budget_exhausted(state):
+                status = "budget_exhausted"
+                break
+
             selected_tests.append(
                 decision.selected_test
             )
+
 
             decisions.append(
                 {
@@ -406,9 +416,7 @@ class AblationExperimentRunner:
 
                 # Charge the measured iteration time to the shared
                 # adaptive budget even when the sandbox execution fails.
-                state.budget_used.time_seconds += (
-                    planner_elapsed + execution_elapsed
-                )
+                state.budget_used.time_seconds += execution_elapsed
 
                 if self.planner.budget_exhausted(state):
                     status = "budget_exhausted"
@@ -457,11 +465,7 @@ class AblationExperimentRunner:
             # Adaptive time budget
             # ------------------------------------------------------
 
-            iteration_elapsed = (
-                planner_elapsed + execution_elapsed
-            )
-            state.budget_used.time_seconds += iteration_elapsed
-
+            state.budget_used.time_seconds += execution_elapsed
             if self.planner.budget_exhausted(state):
                 status = "budget_exhausted"
                 break

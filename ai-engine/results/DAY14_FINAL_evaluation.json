@@ -38,7 +38,7 @@
       "validation_rate": 1.0,
       "execution_cost": {
         "test_count": 3,
-        "execution_time_seconds": 2.6800029445439577e-05
+        "execution_time_seconds": 2.139998832717538e-05
       }
     }
   },
@@ -52,9 +52,9 @@
     "static_execution_test_count": 3,
     "adaptive_execution_test_count": 3,
     "execution_test_count_difference": 0,
-    "static_execution_time_seconds": 2.6800029445439577e-05,
+    "static_execution_time_seconds": 2.139998832717538e-05,
     "adaptive_execution_time_seconds": 3.339996328577399e-05,
-    "execution_time_difference_seconds": 6.5999338403344154e-06,
+    "execution_time_difference_seconds": 1.1999974958598614e-05,
     "static_execution_results_available": true,
     "adaptive_execution_results_available": true
   }

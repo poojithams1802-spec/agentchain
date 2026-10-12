@@ -162,3 +162,40 @@ def test_start_persists_planner_selection_and_final_execution(
     ]
 
     assert persisted["selected_tests"] == persisted["executed_tests"]
+
+def test_adaptive_loop_exception_marks_experiment_failed(
+    monkeypatch,
+):
+    experiment = {
+        "experiment_id": "EXP-EXCEPTION",
+        "name": "Adaptive exception test",
+        "mode": "adaptive",
+        "max_tests": 2,
+        "status": "created",
+    }
+    database = FakeDatabase(experiment)
+
+    class FakeAdaptiveLoop:
+        def __init__(self, planner):
+            pass
+
+        def run_detailed(self, **kwargs):
+            raise RuntimeError("Simulated adaptive-loop failure")
+
+    monkeypatch.setattr(main, "db", database)
+    monkeypatch.setattr(main, "AdaptiveLoop", FakeAdaptiveLoop)
+
+    response = TestClient(main.app).post(
+        "/experiments/EXP-EXCEPTION/start"
+    )
+
+    persisted = database.experiments.find_one(
+        {"experiment_id": "EXP-EXCEPTION"}
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == (
+        "Adaptive experiment execution failed."
+    )
+    assert persisted["status"] == "failed"
+    assert persisted["error"] == "Simulated adaptive-loop failure"

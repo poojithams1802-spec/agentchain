@@ -910,11 +910,30 @@ def start_experiment(
 
     # Run the adaptive loop exactly once. It already executes
     # each selected test through P3's adapter and P4's sandbox.
-    detailed_result = adaptive_loop.run_detailed(
-        planner_input=planner_input,
-        experiment_id=experiment_id,
-        max_tests=max_tests,
-    )
+    try:
+        detailed_result = adaptive_loop.run_detailed(
+            planner_input=planner_input,
+            experiment_id=experiment_id,
+            max_tests=max_tests,
+        )
+    except Exception as exc:
+        db.experiments.update_one(
+            {
+                "experiment_id": experiment_id,
+                "status": "running",
+            },
+            {
+                "$set": {
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Adaptive experiment execution failed.",
+        ) from exc
+
 
     selected_tests = detailed_result["selected_tests"]
     sandbox_results = detailed_result["execution_results"]

@@ -383,7 +383,53 @@ If the chain does not exist:
 
 ---
 
-### 2.11 GET /analytics
+### 2.11 POST /experiments/{experiment_id}/chains/{chain_id}/p4-association
+
+Explicitly associates a stored P2 candidate chain with a registered P4 chain definition.
+
+Request JSON:
+
+```json
+{
+  "p4_chain_id": "CHAIN-AUTH-TOOL-MEM"
+}
+```
+
+The selected P4 definition must have the same ordered steps as the stored P2 chain. The endpoint stores `p4_chain_id` and the registered dependency map on the P2 chain record. Matching steps do not select a canonical definition automatically.
+
+Response JSON:
+
+```json
+{
+  "chain_id": "CHAIN-d4f70fa4",
+  "p4_chain_id": "CHAIN-AUTH-TOOL-MEM"
+}
+```
+
+If the experiment or chain does not exist, the endpoint returns HTTP 404 with `{"detail": "Experiment not found"}` or `{"detail": "Chain not found"}`, respectively. An unregistered P4 definition returns HTTP 404 with `{"detail": "Registered P4 chain not found"}`. An incompatible chain or an association update that does not confirm persistence returns HTTP 409.
+
+---
+
+### 2.12 POST /experiments/{experiment_id}/chains/mitigation/replay
+
+Replays a stored chain through P4 using its explicitly associated canonical P4 chain ID and one selected defensive control.
+
+Request JSON:
+
+```json
+{
+  "chain_id": "CHAIN-d4f70fa4",
+  "control_name": "authorization_gate"
+}
+```
+
+The database chain must belong to the requested experiment and have a registered, compatible P4 association. Unbound, unknown, or incompatible associations return HTTP 409 without invoking P4. Successful responses preserve the database `chain_id`, include `p4_chain_id` separately, and retain P4's before/after results, validation, blocked steps, residual vulnerable steps, and reset evidence. Successful results are persisted as `phase3_chain_mitigation_replay` evaluation records.
+
+HTTP 200 indicates that the replay request completed and returned a result; it does not necessarily mean the mitigation was fully effective. Clients must inspect `validation_result.status`, `chain_disrupted`, `blocked_steps`, and `residual_vulnerable_steps` to understand the outcome. A completed replay may still have residual vulnerable steps even when `chain_disrupted` is `true`.
+
+---
+
+### 2.13 GET /analytics
 
 Returns aggregate metrics based on the existing MongoDB collections.
 

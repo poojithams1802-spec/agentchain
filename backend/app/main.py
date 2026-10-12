@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 import os
 import sys
 import uuid
@@ -25,6 +26,8 @@ from app.schemas import (
     BeforeAfterReplayResult,
     ChainExecutionRequest,
     ChainExecutionResponse,
+    ChainMitigationReplayRequest,
+    ChainP4AssociationRequest,
     ChainDisruptionResult,
     ControlApplicationResult,
     DefensiveControl,
@@ -54,12 +57,17 @@ from mitigation_schemas import (
     MitigationSelectorInput,
 )
 from mitigation_selector import MitigationSelector
-from sandbox.mitigation.mitigation_executor import apply_mitigation
+from sandbox.mitigation.mitigation_executor import (
+    CONTROL_TARGETS,
+    apply_mitigation,
+)
 from sandbox.mitigation.replay_executor import replay_attack
 from sandbox.chains.chain_executor import (
     execute_chain,
     chain_result_to_research_result,
 )
+from sandbox.chains.chain_replay_executor import replay_chain
+from sandbox.chains.chain_registry import get_chain as get_registered_chain
 from sandbox.evaluation.mitigation_evaluation import (
     build_mitigation_experiment_record,
 )
@@ -67,7 +75,10 @@ from sandbox.evaluation.phase2_runner import run_all_phase2_experiments
 from sandbox.evaluation.phase2_metrics import calculate_phase2_metrics
 from sandbox.evaluation.research_metrics import calculate_research_metrics
 from sandbox.execution.adaptive_test_executor import execute_selected_test
-from sandbox.validator.chain_validator import ChainValidator
+from sandbox.validator.chain_validator import (
+    EXPECTED_FINDINGS,
+    ChainValidator,
+)
 from sandbox.agent.multi_agent_security import (
     run_and_validate_multi_agent_security_scenario,
 )
@@ -136,6 +147,313 @@ def add_attack_chain(
     db.attack_chains.insert_one(chain_entry)
 
     return chain_id
+
+
+def _p4_chain_definition_mismatch(
+    chain: dict,
+    definition: dict,
+    require_stored_dependencies: bool,
+) -> str | None:
+    definition_steps = definition.get("steps")
+    if (
+        not isinstance(definition_steps, list)
+        or chain.get("steps") != definition_steps
+    ):
+        return "ordered steps do not match"
+
+    if (
+        "ordered_steps" in definition
+        and definition.get("ordered_steps") != definition_steps
+    ):
+        return "registered ordered steps are inconsistent"
+
+    definition_dependencies = definition.get("dependencies")
+    if not isinstance(definition_dependencies, dict):
+        return "registered dependencies are invalid"
+
+    stored_dependencies = chain.get("dependencies")
+    if "dependencies" not in chain:
+        if require_stored_dependencies:
+            return "stored dependencies are missing"
+    elif stored_dependencies != definition_dependencies:
+        return "dependencies do not match"
+
+    stored_ordered_steps = chain.get("ordered_steps")
+    if (
+        "ordered_steps" in chain
+        and stored_ordered_steps != definition_steps
+    ):
+        return "stored ordered steps do not match"
+
+    return None
+
+
+def _replay_step_validations(steps: list[str], results: object):
+    if not isinstance(results, list) or len(results) != len(steps):
+        return None
+
+    validations = []
+    for step, result in zip(steps, results):
+        if (
+            not isinstance(result, dict)
+            or result.get("test") != step
+            or not isinstance(result.get("status"), str)
+            or (
+                result.get("finding") is not None
+                and not isinstance(result.get("finding"), str)
+            )
+            or "evidence" not in result
+        ):
+            return None
+
+        expected_finding = EXPECTED_FINDINGS.get(step)
+        finding_matches = result.get("finding") == expected_finding
+        evidence_exists = bool(result.get("evidence"))
+        valid = (
+            result.get("status") == "completed"
+            and finding_matches
+            and evidence_exists
+        )
+        validations.append(
+            {
+                "valid": valid,
+                "test": step,
+                "status": result.get("status"),
+                "finding": result.get("finding"),
+                "expected_finding": expected_finding,
+                "finding_matches": finding_matches,
+                "evidence_exists": evidence_exists,
+                "error": (
+                    None
+                    if valid
+                    else "Chain step validation failed."
+                ),
+            }
+        )
+
+    return validations
+
+
+def _replay_validation_matches(
+    validation: object,
+    step_validations: list[dict],
+    steps: list[str],
+) -> bool:
+    if not isinstance(validation, dict):
+        return False
+
+    valid_count = sum(
+        item["valid"]
+        for item in step_validations
+    )
+    total_steps = len(steps)
+    expected_values = {
+        "valid": total_steps > 0 and valid_count == total_steps,
+        "validated_steps": valid_count,
+        "total_steps": total_steps,
+        "validation_rate": valid_count / total_steps if total_steps else 0.0,
+        "steps": step_validations,
+    }
+    for key, expected in expected_values.items():
+        actual = validation.get(key)
+        if key == "validated_steps" or key == "total_steps":
+            if type(actual) is not int or actual != expected:
+                return False
+        elif key == "validation_rate":
+            if (
+                isinstance(actual, bool)
+                or not isinstance(actual, (int, float))
+                or actual != expected
+            ):
+                return False
+        elif key == "valid":
+            if type(actual) is not bool or actual is not expected:
+                return False
+        elif actual != expected:
+            return False
+
+    actual_steps = validation.get("steps")
+    if not isinstance(actual_steps, list) or len(actual_steps) != len(
+        step_validations
+    ):
+        return False
+    for actual, expected in zip(actual_steps, step_validations):
+        if not isinstance(actual, dict):
+            return False
+        if (
+            type(actual.get("valid")) is not bool
+            or type(actual.get("finding_matches")) is not bool
+            or type(actual.get("evidence_exists")) is not bool
+            or any(
+                actual.get(key) != value
+                for key, value in expected.items()
+            )
+        ):
+            return False
+
+    return True
+
+
+def _valid_chain_replay_result(
+    result: object,
+    experiment_id: str,
+    p4_chain_id: str,
+    control_name: str,
+    definition: dict,
+) -> bool:
+    if not isinstance(result, dict):
+        return False
+
+    steps = definition.get("steps")
+    if (
+        not isinstance(steps, list)
+        or not steps
+        or result.get("status") != "completed"
+        or not isinstance(result.get("chain_id"), str)
+        or not result["chain_id"]
+        or result["chain_id"] != p4_chain_id
+        or result.get("experiment_id") != experiment_id
+        or result.get("control") != control_name
+        or result.get("chain_name") != definition.get("name")
+        or result.get("chain_description") != definition.get("description")
+        or result.get("chain_steps") != steps
+        or type(result.get("chain_length")) is not int
+        or result["chain_length"] != len(steps)
+    ):
+        return False
+
+    before_validations = _replay_step_validations(
+        steps,
+        result.get("before"),
+    )
+    after_validations = _replay_step_validations(
+        steps,
+        result.get("after"),
+    )
+    if (
+        before_validations is None
+        or after_validations is None
+        or not _replay_validation_matches(
+            result.get("before_validation"),
+            before_validations,
+            steps,
+        )
+        or not _replay_validation_matches(
+            result.get("after_validation"),
+            after_validations,
+            steps,
+        )
+    ):
+        return False
+
+    control_details = CONTROL_TARGETS.get(control_name)
+    activation = result.get("activation")
+    if (
+        control_details is None
+        or not isinstance(activation, dict)
+        or activation.get("status") != "applied"
+        or activation.get("experiment_id") != experiment_id
+        or activation.get("control") != control_name
+        or activation.get("target") != control_details["target"]
+        or activation.get("test") != control_details["test"]
+        or not isinstance(activation.get("evidence"), str)
+        or not activation["evidence"]
+    ):
+        return False
+
+    activation_result = activation.get("activation")
+    if (
+        not isinstance(activation_result, dict)
+        or activation_result.get("status") != "activated"
+        or activation_result.get("experiment_id") != experiment_id
+        or activation_result.get("control") != control_name
+        or not isinstance(activation_result.get("evidence"), str)
+        or not activation_result["evidence"]
+    ):
+        return False
+
+    blocked_steps = []
+    for step, step_result in zip(steps, result["after"]):
+        evidence = step_result.get("evidence")
+        blocked_marker = (
+            isinstance(evidence, dict)
+            and evidence.get("result") == "attack_blocked"
+        )
+        mitigation_applied = step_result.get("mitigation_applied")
+        if (
+            ("mitigation_applied" in step_result and
+             type(mitigation_applied) is not bool)
+            or (blocked_marker and mitigation_applied is not True)
+            or (mitigation_applied is True and not blocked_marker)
+        ):
+            return False
+        if mitigation_applied is True and blocked_marker:
+            if (
+                step != control_details["test"]
+                or step_result.get("mitigation_control") != control_name
+                or evidence.get("mitigation") != control_name
+                or evidence.get("mitigation_status") != "active"
+            ):
+                return False
+            blocked_steps.append(step)
+
+    residual_steps = [
+        step for step in steps
+        if step not in blocked_steps
+    ]
+    chain_disrupted = bool(blocked_steps)
+    if (
+        result.get("blocked_steps") != blocked_steps
+        or result.get("residual_vulnerable_steps") != residual_steps
+        or type(result.get("chain_disrupted")) is not bool
+        or result["chain_disrupted"] != chain_disrupted
+    ):
+        return False
+
+    before_valid = result["before_validation"]["valid"]
+    after_valid = result["after_validation"]["valid"]
+    validation_success = before_valid and after_valid and chain_disrupted
+    validation_result = result.get("validation_result")
+    if not isinstance(validation_result, dict):
+        return False
+    expected_validation_result = {
+        "status": "validated" if validation_success else "invalid",
+        "before_valid": before_valid,
+        "after_valid": after_valid,
+        "chain_disrupted": chain_disrupted,
+        "blocked_steps": blocked_steps,
+        "residual_vulnerable_steps": residual_steps,
+        "attack_blocked": chain_disrupted,
+        "validation_rate": 1.0 if validation_success else 0.0,
+    }
+    for key, expected in expected_validation_result.items():
+        actual = validation_result.get(key)
+        if key in {
+            "before_valid",
+            "after_valid",
+            "chain_disrupted",
+            "attack_blocked",
+        }:
+            if type(actual) is not bool or actual is not expected:
+                return False
+        elif key == "validation_rate":
+            if (
+                isinstance(actual, bool)
+                or not isinstance(actual, (int, float))
+                or actual != expected
+            ):
+                return False
+        elif actual != expected:
+            return False
+
+    reset = result.get("reset")
+    return (
+        isinstance(reset, dict)
+        and reset.get("status") == "reset"
+        and reset.get("experiment_id") == experiment_id
+        and isinstance(reset.get("evidence"), str)
+        and bool(reset["evidence"])
+    )
 
 
 @app.get("/health")
@@ -372,6 +690,211 @@ def execute_experiment_chain(
         fallback_used=False,
     )
     persist_phase3_chain_result(research_result)
+
+    return result
+
+
+@app.post(
+    "/experiments/{experiment_id}/chains/{chain_id}/p4-association",
+)
+def associate_experiment_chain_with_p4(
+    experiment_id: str,
+    chain_id: str,
+    payload: ChainP4AssociationRequest,
+):
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    chain = db.attack_chains.find_one(
+        {
+            "chain_id": chain_id,
+            "experiment_id": experiment_id,
+        }
+    )
+    if chain is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Chain not found",
+        )
+
+    definition = get_registered_chain(payload.p4_chain_id)
+    if definition is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Registered P4 chain not found",
+        )
+
+    mismatch = _p4_chain_definition_mismatch(
+        chain,
+        definition,
+        require_stored_dependencies=False,
+    )
+    if mismatch is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Chain is incompatible with the selected P4 definition: {mismatch}",
+        )
+
+    update_result = db.attack_chains.update_one(
+        {
+            "chain_id": chain_id,
+            "experiment_id": experiment_id,
+        },
+        {
+            "$set": {
+                "p4_chain_id": payload.p4_chain_id,
+                "dependencies": definition["dependencies"],
+            }
+        },
+    )
+    already_associated = (
+        chain.get("p4_chain_id") == payload.p4_chain_id
+        and chain.get("dependencies") == definition["dependencies"]
+    )
+    if (
+        update_result is None
+        or getattr(update_result, "acknowledged", False) is not True
+        or getattr(update_result, "matched_count", 0) != 1
+        or (
+            getattr(update_result, "modified_count", 0) != 1
+            and not already_associated
+        )
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Chain association could not be persisted",
+        )
+
+    return {
+        "chain_id": chain_id,
+        "p4_chain_id": payload.p4_chain_id,
+    }
+
+
+@app.post(
+    "/experiments/{experiment_id}/chains/mitigation/replay",
+)
+def replay_experiment_chain_mitigation(
+    experiment_id: str,
+    payload: ChainMitigationReplayRequest,
+):
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    chain = db.attack_chains.find_one(
+        {
+            "chain_id": payload.chain_id,
+            "experiment_id": experiment_id,
+        }
+    )
+
+    if chain is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Chain not found",
+        )
+
+    p4_chain_id = chain.get("p4_chain_id")
+    if not isinstance(p4_chain_id, str) or not p4_chain_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Chain has no registered P4 association",
+        )
+
+    definition = get_registered_chain(p4_chain_id)
+    if definition is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Chain references an unknown registered P4 definition",
+        )
+
+    mismatch = _p4_chain_definition_mismatch(
+        chain,
+        definition,
+        require_stored_dependencies=True,
+    )
+    if mismatch is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Chain is incompatible with its registered P4 definition: {mismatch}",
+        )
+
+    try:
+        result = replay_chain(
+            experiment_id,
+            p4_chain_id,
+            payload.control_name.value,
+        )
+    except Exception as error:
+        logging.warning(
+            "Full-chain mitigation replay raised exception: "
+            "exception_type=%s",
+            type(error).__name__,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Full-chain mitigation replay failed",
+        ) from None
+
+    if not isinstance(result, dict) or result.get("status") != "completed":
+        status_category = (
+            "failed"
+            if isinstance(result, dict) and result.get("status") == "failed"
+            else "non_completed"
+        )
+        logging.warning(
+            "Full-chain mitigation replay result invalid: "
+            "result_type=%s status_category=%s missing_fields=%s",
+            type(result).__name__,
+            status_category,
+            [],
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Full-chain mitigation replay returned an invalid result",
+        )
+
+    if not _valid_chain_replay_result(
+        result,
+        experiment_id,
+        p4_chain_id,
+        payload.control_name.value,
+        definition,
+    ):
+        logging.warning(
+            "Full-chain mitigation replay result failed contract validation"
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Full-chain mitigation replay returned an invalid result",
+        )
+
+    result = {
+        **result,
+        "chain_id": payload.chain_id,
+        "p4_chain_id": p4_chain_id,
+    }
+
+    db.evaluation_results.insert_one(
+        {
+            **result,
+            "evaluation_type": "phase3_chain_mitigation_replay",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
 
     return result
 

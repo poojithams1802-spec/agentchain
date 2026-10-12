@@ -1,4 +1,5 @@
 
+from time import perf_counter
 from typing import Any
 
 from planner import AdaptivePlanner
@@ -46,6 +47,14 @@ class AdaptiveLoop:
         findings: list[Finding] = []
 
         for _ in range(max_tests):
+            if (
+                planner_input.budget_used.tests
+                >= planner_input.testing_budget.max_tests
+                or planner_input.budget_used.time_seconds
+                >= planner_input.testing_budget.max_time_seconds
+            ):
+                break
+
             unexecuted_tests = [
                 test
                 for test in planner_input.available_tests
@@ -55,12 +64,33 @@ class AdaptiveLoop:
             if not unexecuted_tests:
                 break
 
-            decision = self.planner.plan(planner_input)
+            planning_started = perf_counter()
+            try:
+                decision = self.planner.plan(planner_input)
+            finally:
+                planner_input.budget_used.time_seconds += max(
+                    0.0,
+                    perf_counter() - planning_started,
+                )
 
-            sandbox_result = execute_planned_test(
-                decision,
-                experiment_id,
-            )
+            if (
+                planner_input.budget_used.time_seconds
+                >= planner_input.testing_budget.max_time_seconds
+            ):
+                break
+
+            execution_started = perf_counter()
+            try:
+                sandbox_result = execute_planned_test(
+                    decision,
+                    experiment_id,
+                )
+            finally:
+                planner_input.budget_used.tests += 1
+                planner_input.budget_used.time_seconds += max(
+                    0.0,
+                    perf_counter() - execution_started,
+                )
 
             planner_input.previous_tests.append(
                 decision.selected_test
@@ -102,10 +132,19 @@ class AdaptiveLoop:
         decisions: list[dict[str, Any]] = []
         execution_results: list[dict[str, Any]] = []
         decision_metadata_history: list[dict[str, Any]] = []
+        tests_attempted = 0
 
         fallback_used = False
 
         for _ in range(max_tests):
+            if (
+                planner_input.budget_used.tests
+                >= planner_input.testing_budget.max_tests
+                or planner_input.budget_used.time_seconds
+                >= planner_input.testing_budget.max_time_seconds
+            ):
+                break
+
             unexecuted_tests = [
                 test
                 for test in planner_input.available_tests
@@ -116,7 +155,14 @@ class AdaptiveLoop:
                 break
 
             # Get the next adaptive testing decision.
-            decision = self.planner.plan(planner_input)
+            planning_started = perf_counter()
+            try:
+                decision = self.planner.plan(planner_input)
+            finally:
+                planner_input.budget_used.time_seconds += max(
+                    0.0,
+                    perf_counter() - planning_started,
+                )
 
             # Preserve the existing detailed-evaluation decision contract.
             decision_reason = getattr(decision, "reason", "")
@@ -164,11 +210,26 @@ class AdaptiveLoop:
 
             selected_tests.append(decision.selected_test)
 
+            if (
+                planner_input.budget_used.time_seconds
+                >= planner_input.testing_budget.max_time_seconds
+            ):
+                break
+
             # Execute the selected test in the sandbox.
-            sandbox_result = execute_planned_test(
-                decision,
-                experiment_id,
-            )
+            execution_started = perf_counter()
+            try:
+                sandbox_result = execute_planned_test(
+                    decision,
+                    experiment_id,
+                )
+            finally:
+                planner_input.budget_used.tests += 1
+                tests_attempted += 1
+                planner_input.budget_used.time_seconds += max(
+                    0.0,
+                    perf_counter() - execution_started,
+                )
 
             execution_results.append(sandbox_result)
 
@@ -194,13 +255,11 @@ class AdaptiveLoop:
             planner_input.findings.append(finding)
             findings.append(finding)
 
-            planner_input.budget_used.tests += 1
-
         return {
             "status": "completed",
             "experiment_id": experiment_id,
             "selected_tests": selected_tests,
-            "tests_used": len(selected_tests),
+            "tests_used": tests_attempted,
             "decisions": decisions,
             "execution_results": execution_results,
             "findings": findings,

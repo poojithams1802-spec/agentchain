@@ -39,6 +39,15 @@ class DefensiveControl(str, Enum):
     memory_validation = "memory_validation"
 
 
+class ChainMitigationReplayRequest(BaseModel):
+    chain_id: str = Field(..., min_length=1)
+    control_name: DefensiveControl
+
+
+class ChainP4AssociationRequest(BaseModel):
+    p4_chain_id: str = Field(..., min_length=1)
+
+
 class MitigationSelectionRequest(BaseModel):
     chain_id: str = Field(..., min_length=1)
     finding: str = Field(..., min_length=1)

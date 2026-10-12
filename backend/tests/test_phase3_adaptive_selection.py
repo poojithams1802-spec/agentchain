@@ -1,3 +1,4 @@
+import math
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -174,20 +175,38 @@ def test_start_persists_planner_selection_and_final_execution(
     assert persisted["selected_tests"] == persisted["executed_tests"]
 
     assert persisted["budget_used"] == 5
-    assert persisted["adaptive_budget_used"] == {
+    persisted_budget = persisted["adaptive_budget_used"]
+    assert {
+        key: value
+        for key, value in persisted_budget.items()
+        if key != "time_seconds"
+    } == {
         "tests": 2,
         "llm_calls": 2,
-        "time_seconds": 0.0,
     }
+    persisted_elapsed = persisted_budget["time_seconds"]
+    assert isinstance(persisted_elapsed, (int, float))
+    assert not isinstance(persisted_elapsed, bool)
+    assert math.isfinite(persisted_elapsed)
+    assert persisted_elapsed >= 0
 
     adaptive_run = database.adaptive_run_results.documents[0]
     assert adaptive_run["llm_calls"] == 2
     assert adaptive_run["fallback_used"] is False
-    assert adaptive_run["budget_used"] == {
+    adaptive_run_budget = adaptive_run["budget_used"]
+    assert {
+        key: value
+        for key, value in adaptive_run_budget.items()
+        if key != "time_seconds"
+    } == {
         "tests": 2,
         "llm_calls": 2,
-        "time_seconds": 0.0,
     }
+    adaptive_run_elapsed = adaptive_run_budget["time_seconds"]
+    assert isinstance(adaptive_run_elapsed, (int, float))
+    assert not isinstance(adaptive_run_elapsed, bool)
+    assert math.isfinite(adaptive_run_elapsed)
+    assert adaptive_run_elapsed >= 0
     assert response.json()["llm_calls"] == 2
     assert response.json()["fallback_used"] is False
     assert response.json()["budget_used"] == adaptive_run["budget_used"]

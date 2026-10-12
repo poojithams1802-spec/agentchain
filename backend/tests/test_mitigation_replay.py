@@ -618,6 +618,14 @@ def test_get_mitigation_result_returns_completed_run(replay_context):
                 "selected_control": "tool_allowlist",
                 "reason": "Restrict tool access.",
                 "confidence": 0.92,
+                "llm_called": True,
+                "llm_success": False,
+                "llm_error": "ValueError: invalid response",
+                "retrieved_documents": 3,
+                "rag_time_seconds": 0.11,
+                "prompt_build_time_seconds": 0.02,
+                "llm_time_seconds": 0.33,
+                "total_time_seconds": 0.46,
             },
             "application": {
                 "selected_control": "tool_allowlist",
@@ -656,6 +664,14 @@ def test_get_mitigation_result_returns_completed_run(replay_context):
     assert result.selection.selected_control == "tool_allowlist"
     assert result.selection.reason == "Restrict tool access."
     assert result.selection.confidence == 0.92
+    assert body["selection"]["llm_called"] is True
+    assert body["selection"]["llm_success"] is False
+    assert body["selection"]["llm_error"] == "ValueError: invalid response"
+    assert body["selection"]["retrieved_documents"] == 3
+    assert body["selection"]["rag_time_seconds"] == 0.11
+    assert body["selection"]["prompt_build_time_seconds"] == 0.02
+    assert body["selection"]["llm_time_seconds"] == 0.33
+    assert body["selection"]["total_time_seconds"] == 0.46
 
 
 def test_get_mitigation_result_rejects_incomplete_run(replay_context):
@@ -667,6 +683,54 @@ def test_get_mitigation_result_rejects_incomplete_run(replay_context):
     )
 
     assert response.status_code == 409
+
+
+def test_get_mitigation_result_preserves_legacy_selection_shape(replay_context):
+    client, fake_database, _ = replay_context
+    run = fake_database.mitigation_runs.documents[0]
+    run.update(
+        {
+            "status": "completed",
+            "selection": {
+                "selected_control": "tool_allowlist",
+                "reason": "Restrict tool access.",
+                "confidence": 0.92,
+            },
+            "application": {
+                "selected_control": "tool_allowlist",
+                "status": "applied",
+                "execution_info": {},
+            },
+            "replay": {
+                "test": "tool_access_test",
+                "before_result": {},
+                "after_result": {},
+                "blocked_after_mitigation": True,
+            },
+            "disruption": {
+                "chain_id": "CHAIN001",
+                "before_validation": {},
+                "after_validation": {},
+                "disrupted": True,
+                "residual_vulnerable_steps": [],
+                "validation_result": {},
+            },
+        }
+    )
+
+    response = client.get(
+        "/experiments/EXP001/mitigation/result",
+        params={"mitigation_run_id": "MIT-1234abcd"},
+    )
+
+    assert response.status_code == 200
+    selection = response.json()["selection"]
+    assert set(selection) == {
+        "mitigation_run_id",
+        "selected_control",
+        "reason",
+        "confidence",
+    }
 
 
 def test_get_mitigation_result_missing_run_returns_404(replay_context):

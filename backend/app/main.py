@@ -491,6 +491,29 @@ def select_mitigation(
             "fallback_used": bool(
                 selector_metrics.get("fallback_used", False)
             ),
+            "llm_called": selector_metrics.get("llm_called", False),
+            "llm_success": selector_metrics.get("llm_success", False),
+            "llm_error": selector_metrics.get("llm_error"),
+            "retrieved_documents": selector_metrics.get(
+                "retrieved_documents",
+                0,
+            ),
+            "rag_time_seconds": selector_metrics.get(
+                "rag_time_seconds",
+                0.0,
+            ),
+            "prompt_build_time_seconds": selector_metrics.get(
+                "prompt_build_time_seconds",
+                0.0,
+            ),
+            "llm_time_seconds": selector_metrics.get(
+                "llm_time_seconds",
+                0.0,
+            ),
+            "total_time_seconds": selector_metrics.get(
+                "total_time_seconds",
+                0.0,
+            ),
         },
     )
 
@@ -784,6 +807,7 @@ def replay_mitigation_run(
 @app.get(
     "/experiments/{experiment_id}/mitigation/result",
     response_model=MitigationResultResponse,
+    response_model_exclude_unset=True,
 )
 def get_mitigation_result(
     experiment_id: str,
@@ -829,6 +853,20 @@ def get_mitigation_result(
             "selected_control": selection["selected_control"],
             "reason": selection["reason"],
             "confidence": selection["confidence"],
+            **{
+                field: selection[field]
+                for field in (
+                    "llm_called",
+                    "llm_success",
+                    "llm_error",
+                    "retrieved_documents",
+                    "rag_time_seconds",
+                    "prompt_build_time_seconds",
+                    "llm_time_seconds",
+                    "total_time_seconds",
+                )
+                if field in selection
+            },
         },
         application=mitigation_run["application"],
         replay=mitigation_run["replay"],

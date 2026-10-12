@@ -266,6 +266,17 @@ def test_selection_persistence(mitigation_context):
         priority=0.8,
     )
     selector.retrieved_knowledge = ["deterministic retrieved knowledge"]
+    selector.last_metrics = {
+        "llm_called": True,
+        "llm_success": False,
+        "llm_error": "ValueError: invalid response",
+        "retrieved_documents": 3,
+        "rag_time_seconds": 0.11,
+        "prompt_build_time_seconds": 0.02,
+        "llm_time_seconds": 0.33,
+        "total_time_seconds": 0.46,
+        "fallback_used": True,
+    }
 
     response = client.post(
         "/experiments/EXP001/mitigation/select",
@@ -281,9 +292,44 @@ def test_selection_persistence(mitigation_context):
         "confidence": 0.92,
         "priority": 0.8,
         "retrieved_knowledge": ["deterministic retrieved knowledge"],
-        "llm_calls": 0,
-        "fallback_used": False,
+        "llm_calls": 1,
+        "fallback_used": True,
+        "llm_called": True,
+        "llm_success": False,
+        "llm_error": "ValueError: invalid response",
+        "retrieved_documents": 3,
+        "rag_time_seconds": 0.11,
+        "prompt_build_time_seconds": 0.02,
+        "llm_time_seconds": 0.33,
+        "total_time_seconds": 0.46,
     }
+
+
+@pytest.mark.parametrize("last_metrics", [None, "unavailable"])
+def test_selection_persistence_defaults_when_metrics_are_not_a_dictionary(
+    mitigation_context,
+    last_metrics,
+):
+    client, fake_database, selector = mitigation_context
+    selector.last_metrics = last_metrics
+
+    response = client.post(
+        "/experiments/EXP001/mitigation/select",
+        json=selection_payload(),
+    )
+
+    assert response.status_code == 200
+    selection = fake_database.mitigation_runs.documents[0]["selection"]
+    assert selection["llm_calls"] == 0
+    assert selection["fallback_used"] is False
+    assert selection["llm_called"] is False
+    assert selection["llm_success"] is False
+    assert selection["llm_error"] is None
+    assert selection["retrieved_documents"] == 0
+    assert selection["rag_time_seconds"] == 0.0
+    assert selection["prompt_build_time_seconds"] == 0.0
+    assert selection["llm_time_seconds"] == 0.0
+    assert selection["total_time_seconds"] == 0.0
 
 
 def test_phase1_route_smoke_regression(mitigation_context):

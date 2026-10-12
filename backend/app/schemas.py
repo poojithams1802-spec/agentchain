@@ -53,6 +53,14 @@ class MitigationSelectionResponse(BaseModel):
     selected_control: DefensiveControl
     reason: str = Field(..., min_length=1)
     confidence: float = Field(..., ge=0.0, le=1.0)
+    llm_called: bool | None = None
+    llm_success: bool | None = None
+    llm_error: str | None = None
+    retrieved_documents: int | None = Field(None, ge=0)
+    rag_time_seconds: float | None = Field(None, ge=0.0)
+    prompt_build_time_seconds: float | None = Field(None, ge=0.0)
+    llm_time_seconds: float | None = Field(None, ge=0.0)
+    total_time_seconds: float | None = Field(None, ge=0.0)
 
 
 class MitigationApplyRequest(BaseModel):

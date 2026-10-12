@@ -1,9 +1,9 @@
-import json
+
 import sys
 import time
 import uuid
+from collections import Counter
 from pathlib import Path
-
 
 # ---------------------------------------------------------
 # Make project root importable
@@ -18,7 +18,6 @@ if str(AI_ENGINE_DIR) not in sys.path:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-
 # ---------------------------------------------------------
 # P3 imports
 # ---------------------------------------------------------
@@ -29,7 +28,6 @@ from mitigation_schemas import (
     MitigationSelectorInput,
 )
 
-
 # ---------------------------------------------------------
 # P4 imports
 # ---------------------------------------------------------
@@ -38,7 +36,6 @@ from sandbox.mitigation.replay_executor import replay_attack
 from sandbox.evaluation.mitigation_evaluation import (
     build_mitigation_experiment_record,
 )
-
 
 # ---------------------------------------------------------
 # Experiment logger
@@ -56,16 +53,16 @@ SCENARIOS = [
         "finding": "weak_permission_control",
         "severity": "high",
         "evidence": "Permission boundary is insufficiently enforced.",
-        "attack_chain": [
-            "permission_test",
-        ],
+        "attack_chain": ["permission_test"],
         "test_name": "permission_test",
         "expected_control": "authorization_gate",
     },
     {
         "finding": "unsafe_tool_access",
         "severity": "high",
-        "evidence": "A tool can be accessed without sufficient allowlisting.",
+        "evidence": (
+            "A tool can be accessed without sufficient allowlisting."
+        ),
         "attack_chain": [
             "permission_test",
             "tool_access_test",
@@ -89,7 +86,28 @@ SCENARIOS = [
 
 
 # ---------------------------------------------------------
-# P3 → P4 E2E runner
+# Helpers
+# ---------------------------------------------------------
+
+def percentage(count, total):
+    return count / total * 100 if total else 0.0
+
+
+def is_quota_error(error):
+    if not error:
+        return False
+
+    error_text = str(error).upper()
+
+    return (
+        "RESOURCE_EXHAUSTED" in error_text
+        or "429" in error_text
+        or "QUOTA" in error_text
+    )
+
+
+# ---------------------------------------------------------
+# P3 -> P4 E2E runner
 # ---------------------------------------------------------
 
 def run_scenario(selector, scenario):
@@ -116,9 +134,7 @@ def run_scenario(selector, scenario):
     # -----------------------------------------------------
 
     selection_start = time.perf_counter()
-
     decision = selector.select(request)
-
     selection_time = time.perf_counter() - selection_start
 
     selected_control = decision.selected_control
@@ -131,8 +147,11 @@ def run_scenario(selector, scenario):
         getattr(selector, "last_metrics", {})
     )
 
+    llm_error = selector_metrics.get("llm_error")
+    rag_error = selector_metrics.get("rag_retrieval_error")
+
     # -----------------------------------------------------
-    # P4 complete replay/evaluation
+    # P4 replay/evaluation
     # -----------------------------------------------------
 
     experiment_id = (
@@ -150,10 +169,6 @@ def run_scenario(selector, scenario):
 
     replay_time = time.perf_counter() - replay_start
 
-    # -----------------------------------------------------
-    # Validate P4 boundary result
-    # -----------------------------------------------------
-
     if replay_result.get("status") != "completed":
         raise RuntimeError(
             f"P4 replay failed for {scenario['finding']}: "
@@ -161,35 +176,115 @@ def run_scenario(selector, scenario):
         )
 
     # -----------------------------------------------------
-    # Use P4 evaluation helper
+    # P4 evaluation record
     # -----------------------------------------------------
 
     record = build_mitigation_experiment_record(
         replay_result,
         mode="adaptive",
         mitigation_selected=True,
-        llm_calls=1 if selector_metrics.get("llm_called") else 0,
+        llm_calls=(
+            1 if selector_metrics.get("llm_called") else 0
+        ),
         fallback_used=bool(
             selector_metrics.get("fallback_used", False)
         ),
     )
 
     # -----------------------------------------------------
-    # Add P3-specific evaluation metadata
+    # P3 evaluation metadata
     # -----------------------------------------------------
 
     record.update(
         {
+            "experiment_id": experiment_id,
+            "p3_finding": scenario["finding"],
             "p3_selection_correct": selection_correct,
             "p3_expected_control": scenario["expected_control"],
             "p3_selected_control": selected_control,
-            "p3_selection_time_seconds": selection_time,
-            "p4_replay_time_seconds": replay_time,
+            "p3_selection_time_seconds": round(
+                selection_time, 6
+            ),
+            "p4_replay_time_seconds": round(
+                replay_time, 6
+            ),
+
+            # Full selector metrics remain available.
             "p3_selector_metrics": selector_metrics,
+
+            # Also persist important metrics at top level.
+            "rag_retrieval_status": selector_metrics.get(
+                "rag_retrieval_status", "unknown"
+            ),
+            "rag_retrieval_error": rag_error,
+            "rag_context_in_prompt": selector_metrics.get(
+                "rag_context_in_prompt", False
+            ),
+            "retrieved_documents": selector_metrics.get(
+                "retrieved_documents", 0
+            ),
+            "llm_called": selector_metrics.get(
+                "llm_called", False
+            ),
+            "llm_success": selector_metrics.get(
+                "llm_success", False
+            ),
+            "llm_error": llm_error,
+            "fallback_used": selector_metrics.get(
+                "fallback_used", False
+            ),
+            "llm_quota_error": is_quota_error(llm_error),
         }
     )
 
-    return record, replay_result
+    return record
+
+
+# ---------------------------------------------------------
+# Print one scenario
+# ---------------------------------------------------------
+
+def print_scenario(record, index):
+    print()
+    print("-" * 70)
+    print(f"SCENARIO {index}: {record.get('p3_finding')}")
+    print("-" * 70)
+
+    print(f"Expected control       : {record['p3_expected_control']}")
+    print(f"Selected control       : {record['p3_selected_control']}")
+    print(f"Selection correct      : {record['p3_selection_correct']}")
+
+    print(f"RAG retrieval status   : {record['rag_retrieval_status']}")
+    print(f"Retrieved documents    : {record['retrieved_documents']}")
+    print(f"RAG context in prompt  : {record['rag_context_in_prompt']}")
+
+    print(f"LLM called             : {record['llm_called']}")
+    print(f"LLM decision successful: {record['llm_success']}")
+    print(f"Fallback used          : {record['fallback_used']}")
+    print(f"Gemini quota error     : {record['llm_quota_error']}")
+
+    if record.get("rag_retrieval_error"):
+        print(f"RAG error              : {record['rag_retrieval_error']}")
+
+    if record.get("llm_error"):
+        print(f"LLM error              : {record['llm_error']}")
+
+    print(f"Mitigation applied     : {record.get('mitigation_applied')}")
+    print(f"Attack before          : {record.get('attack_success_before')}")
+    print(f"Attack after           : {record.get('attack_success_after')}")
+    print(f"Chain disrupted        : {record.get('chain_disrupted')}")
+    print(f"Residual steps         : {record.get('residual_vulnerable_steps')}")
+    print(f"Validation             : {record.get('mitigation_validation')}")
+    print(f"Validation rate        : {record.get('validation_rate')}")
+
+    print(
+        f"Selection time         : "
+        f"{record['p3_selection_time_seconds']:.4f}s"
+    )
+    print(
+        f"Replay time            : "
+        f"{record['p4_replay_time_seconds']:.4f}s"
+    )
 
 
 # ---------------------------------------------------------
@@ -198,176 +293,138 @@ def run_scenario(selector, scenario):
 
 def main():
     print("=" * 70)
-    print("P3 → P4 LEVEL-3 END-TO-END MITIGATION TEST")
+    print("P3 -> P4 LEVEL-3 END-TO-END MITIGATION TEST")
     print("=" * 70)
 
     selector = MitigationSelector()
 
-    logger = MitigationExperimentLogger(
-        "logs/p3_p4_e2e_experiments.jsonl"
-    )
+    log_path = AI_ENGINE_DIR / "logs" / "p3_p4_e2e_experiments.jsonl"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logger = MitigationExperimentLogger(str(log_path))
 
     records = []
 
     for index, scenario in enumerate(SCENARIOS, start=1):
         print()
-        print("-" * 70)
-        print(f"SCENARIO {index}: {scenario['finding']}")
-        print("-" * 70)
+        print(f"Running scenario {index}/{len(SCENARIOS)}...")
 
-        record, replay_result = run_scenario(
-            selector,
-            scenario,
-        )
+        record = run_scenario(selector, scenario)
 
         records.append(record)
-
         logger.log(record)
 
-        print(
-            f"Expected control : "
-            f"{record['p3_expected_control']}"
-        )
-
-        print(
-            f"Selected control : "
-            f"{record['p3_selected_control']}"
-        )
-
-        print(
-            f"Selection correct: "
-            f"{record['p3_selection_correct']}"
-        )
-
-        print(
-            f"Mitigation applied: "
-            f"{record['mitigation_applied']}"
-        )
-
-        print(
-            f"Attack before    : "
-            f"{record['attack_success_before']}"
-        )
-
-        print(
-            f"Attack after     : "
-            f"{record['attack_success_after']}"
-        )
-
-        print(
-            f"Chain disrupted  : "
-            f"{record['chain_disrupted']}"
-        )
-
-        print(
-            f"Residual steps   : "
-            f"{record['residual_vulnerable_steps']}"
-        )
-
-        print(
-            f"Validation       : "
-            f"{record['mitigation_validation']}"
-        )
-
-        print(
-            f"Validation rate  : "
-            f"{record['validation_rate']}"
-        )
-
-        print(
-            f"Selection time   : "
-            f"{record['p3_selection_time_seconds']:.4f}s"
-        )
-
-        print(
-            f"Replay time      : "
-            f"{record['p4_replay_time_seconds']:.4f}s"
-        )
+        print_scenario(record, index)
 
     # -----------------------------------------------------
-    # Aggregate metrics
+    # Aggregate evaluation
     # -----------------------------------------------------
 
     total = len(records)
 
     selection_correct = sum(
-        record["p3_selection_correct"]
+        bool(record.get("p3_selection_correct"))
         for record in records
     )
 
     mitigation_applied = sum(
-        record["mitigation_applied"]
+        bool(record.get("mitigation_applied"))
         for record in records
     )
 
     disrupted = sum(
-        record["chain_disrupted"]
+        bool(record.get("chain_disrupted"))
         for record in records
     )
 
     validated = sum(
-        record["mitigation_validation"]
+        bool(record.get("mitigation_validation"))
         for record in records
     )
 
     total_residual_steps = sum(
-        len(record["residual_vulnerable_steps"])
+        len(record.get("residual_vulnerable_steps") or [])
+        for record in records
+    )
+
+    llm_successes = sum(
+        bool(record.get("llm_success"))
         for record in records
     )
 
     fallback_cases = sum(
-        record["fallback_used"]
+        bool(record.get("fallback_used"))
         for record in records
     )
 
-    print()
-    print("=" * 70)
-    print("P3 → P4 E2E SUMMARY")
-    print("=" * 70)
-
-    print(
-        f"Mitigation selection accuracy: "
-        f"{selection_correct}/{total} "
-        f"({selection_correct / total * 100:.2f}%)"
+    quota_errors = sum(
+        bool(record.get("llm_quota_error"))
+        for record in records
     )
 
-    print(
-        f"Mitigation application success: "
-        f"{mitigation_applied}/{total} "
-        f"({mitigation_applied / total * 100:.2f}%)"
+    rag_status_counts = Counter(
+        record.get("rag_retrieval_status", "unknown")
+        for record in records
     )
 
-    print(
-        f"Attack disruption rate: "
-        f"{disrupted}/{total} "
-        f"({disrupted / total * 100:.2f}%)"
+    # Accuracy among successful LLM decisions only.
+    llm_driven_records = [
+        record
+        for record in records
+        if record.get("llm_success")
+        and not record.get("fallback_used")
+    ]
+
+    llm_driven_correct = sum(
+        bool(record.get("p3_selection_correct"))
+        for record in llm_driven_records
     )
 
-    print(
-        f"Mitigation validation rate: "
-        f"{validated}/{total} "
-        f"({validated / total * 100:.2f}%)"
-    )
-
-    print(
-        f"Residual vulnerable steps: "
-        f"{total_residual_steps}"
-    )
-
-    print(
-        f"Fallback cases: "
-        f"{fallback_cases}/{total}"
-    )
-
-    print()
-    print(
-        "E2E experiment log:"
-        " logs/p3_p4_e2e_experiments.jsonl"
-    )
+    llm_driven_total = len(llm_driven_records)
 
     print()
     print("=" * 70)
-    print("P3 → P4 E2E TEST COMPLETE")
+    print("P3 -> P4 E2E SUMMARY")
+    print("=" * 70)
+
+    print(
+        f"Overall control match: {selection_correct}/{total} "
+        f"({percentage(selection_correct, total):.2f}%)"
+    )
+    print(
+        f"Mitigation application success: {mitigation_applied}/{total} "
+        f"({percentage(mitigation_applied, total):.2f}%)"
+    )
+    print(
+        f"Attack disruption rate: {disrupted}/{total} "
+        f"({percentage(disrupted, total):.2f}%)"
+    )
+    print(
+        f"Mitigation validation rate: {validated}/{total} "
+        f"({percentage(validated, total):.2f}%)"
+    )
+    print(f"Residual vulnerable steps: {total_residual_steps}")
+
+    print()
+    print("--- LLM versus fallback ---")
+    print(f"Successful validated LLM decisions: {llm_successes}/{total}")
+    print(f"Deterministic fallback cases       : {fallback_cases}/{total}")
+    print(f"Gemini quota errors                : {quota_errors}/{total}")
+    print(
+        "Accuracy among successful LLM decisions: "
+        f"{llm_driven_correct}/{llm_driven_total} "
+        f"({percentage(llm_driven_correct, llm_driven_total):.2f}%)"
+    )
+
+    print()
+    print("--- RAG retrieval status ---")
+    for status, count in sorted(rag_status_counts.items()):
+        print(f"{status}: {count}/{total}")
+
+    print()
+    print("Experiment records:", log_path)
+    print("=" * 70)
+    print("P3 -> P4 E2E TEST COMPLETE")
     print("=" * 70)
 
 

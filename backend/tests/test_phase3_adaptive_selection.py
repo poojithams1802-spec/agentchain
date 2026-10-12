@@ -84,6 +84,7 @@ def test_start_persists_planner_selection_and_final_execution(
         "mode": "adaptive",
         "max_tests": 2,
         "status": "created",
+        "budget_used": 3,
     }
     database = FakeDatabase(experiment)
     planned_tests = iter(["permission_test", "tool_access_test"])
@@ -91,6 +92,15 @@ def test_start_persists_planner_selection_and_final_execution(
 
     class FakePlanner:
         def plan(self, planner_input):
+            planner_input.budget_used.llm_calls += 1
+            self.last_decision_metadata = {
+                "decision_source": "gemini",
+                "fallback_reason": None,
+                "rag_retrieval_status": "retrieved",
+                "rag_context_retrieved": True,
+                "rag_context_used": True,
+                "decision_recovery": None,
+            }
             return SimpleNamespace(
                 selected_test=next(planned_tests),
                 reason="Selected for adaptive testing",
@@ -162,6 +172,59 @@ def test_start_persists_planner_selection_and_final_execution(
     ]
 
     assert persisted["selected_tests"] == persisted["executed_tests"]
+
+    assert persisted["budget_used"] == 5
+    assert persisted["adaptive_budget_used"] == {
+        "tests": 2,
+        "llm_calls": 2,
+        "time_seconds": 0.0,
+    }
+
+    adaptive_run = database.adaptive_run_results.documents[0]
+    assert adaptive_run["llm_calls"] == 2
+    assert adaptive_run["fallback_used"] is False
+    assert adaptive_run["budget_used"] == {
+        "tests": 2,
+        "llm_calls": 2,
+        "time_seconds": 0.0,
+    }
+    assert response.json()["llm_calls"] == 2
+    assert response.json()["fallback_used"] is False
+    assert response.json()["budget_used"] == adaptive_run["budget_used"]
+    assert response.json()["decision_metadata"] == adaptive_run[
+        "decision_metadata"
+    ]
+    assert adaptive_run["execution_results"] == response.json()[
+        "execution_results"
+    ]
+    assert [
+        finding["finding"]
+        for finding in adaptive_run["findings"]
+    ] == [
+        "permission_test_finding",
+        "tool_access_test_finding",
+    ]
+
+    assert adaptive_run["decision_metadata"] == [
+        {
+            "decision_source": "gemini",
+            "fallback_reason": None,
+            "rag_retrieval_status": "retrieved",
+            "rag_context_retrieved": True,
+            "rag_context_used": True,
+            "decision_recovery": None,
+        },
+        {
+            "decision_source": "gemini",
+            "fallback_reason": None,
+            "rag_retrieval_status": "retrieved",
+            "rag_context_retrieved": True,
+            "rag_context_used": True,
+            "decision_recovery": None,
+        },
+    ]
+    assert "llm_calls_used" not in response.json()
+    assert "budget_used_delta" not in response.json()
 
 def test_adaptive_loop_exception_marks_experiment_failed(
     monkeypatch,

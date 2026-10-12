@@ -973,7 +973,7 @@ def start_experiment(
         )
 
     # Store the detailed adaptive-run record, including raw execution
-    # evidence, decisions, and distinct budget counters.
+    # evidence, decisions, metadata, and budget counters.
     db.adaptive_run_results.insert_one(
         {
             "experiment_id": experiment_id,
@@ -981,22 +981,22 @@ def start_experiment(
             "tests_used": detailed_result["tests_used"],
             "selected_tests": selected_tests,
             "decisions": detailed_result["decisions"],
+            "decision_metadata": detailed_result["decision_metadata"],
             "execution_results": sandbox_results,
             "findings": [
                 finding.model_dump()
                 for finding in detailed_result["findings"]
             ],
-            "llm_calls_used": detailed_result["llm_calls_used"],
             "llm_calls": detailed_result["llm_calls"],
             "fallback_used": detailed_result["fallback_used"],
             "budget_used": detailed_result["budget_used"],
-            "budget_used_delta": detailed_result["budget_used_delta"],
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     )
 
     previous_budget_used = experiment.get("budget_used", 0)
-    budget_used_delta = detailed_result["budget_used_delta"]
+    budget_used = detailed_result["budget_used"]
+    tests_used_for_budget = budget_used["tests"]
 
     db.experiments.update_one(
         {"experiment_id": experiment_id},
@@ -1004,10 +1004,8 @@ def start_experiment(
             "$set": {
                 "selected_tests": selected_tests,
                 "executed_tests": executed_tests,
-                "budget_used": previous_budget_used
-                + budget_used_delta["tests"],
-                "adaptive_budget_used": detailed_result["budget_used"],
-                "adaptive_budget_used_delta": budget_used_delta,
+                "budget_used": previous_budget_used + tests_used_for_budget,
+                "adaptive_budget_used": budget_used,
             }
         },
     )
@@ -1120,12 +1118,11 @@ def start_experiment(
         "tests_used": detailed_result["tests_used"],
         "selected_tests": selected_tests,
         "decisions": detailed_result["decisions"],
+        "decision_metadata": detailed_result["decision_metadata"],
         "execution_results": sandbox_results,
-        "llm_calls_used": detailed_result["llm_calls_used"],
         "llm_calls": detailed_result["llm_calls"],
         "fallback_used": detailed_result["fallback_used"],
         "budget_used": detailed_result["budget_used"],
-        "budget_used_delta": detailed_result["budget_used_delta"],
     }
 
 

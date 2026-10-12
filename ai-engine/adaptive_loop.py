@@ -1,5 +1,4 @@
 
-from time import perf_counter
 from typing import Any
 
 from planner import AdaptivePlanner
@@ -9,13 +8,19 @@ from schemas import Finding, PlannerInput
 
 class AdaptiveLoop:
     """
-    Adaptive testing loop with execution and planning measurements.
+    Adaptive testing loop.
 
-    P3 owns adaptive planning.
-    P4 owns sandbox execution and validation.
+    Flow:
+        PlannerInput
+            -> AdaptivePlanner
+            -> PlannerDecision
+            -> Sandbox execution
+            -> Finding
+            -> Updated planner state
 
-    Source attribution remains provisional until the planner
-    exposes structured metadata for every decision.
+    Person 2 supplies experiment_id.
+    Person 3 owns adaptive planning logic.
+    Person 4 owns sandbox execution.
     """
 
     def __init__(
@@ -24,74 +29,61 @@ class AdaptiveLoop:
     ) -> None:
         self.planner = planner or AdaptivePlanner()
 
-    @staticmethod
-    def _validate_inputs(
-        experiment_id: str,
-        max_tests: int,
-    ) -> None:
-        if not experiment_id or not experiment_id.strip():
-            raise ValueError("experiment_id must not be empty.")
-        if max_tests < 1:
-            raise ValueError("max_tests must be at least 1.")
-
-    @staticmethod
-    def _unexecuted_tests(
-        planner_input: PlannerInput,
-    ) -> list[str]:
-        return [
-            test
-            for test in planner_input.available_tests
-            if test not in planner_input.previous_tests
-        ]
-
-    @staticmethod
-    def _finding_from_sandbox_result(
-        sandbox_result: dict[str, Any],
-    ) -> Finding:
-        evidence = sandbox_result["evidence"]
-        if not isinstance(evidence, str):
-            evidence = str(evidence)
-
-        return Finding(
-            finding=sandbox_result["finding"],
-            severity=sandbox_result["severity"],
-            confidence=sandbox_result["confidence"],
-            evidence=evidence,
-        )
-
-    @staticmethod
-    def _provisional_source(
-        decision: Any,
-    ) -> tuple[str, str | None]:
-        """
-        Temporary compatibility logic.
-
-        A reason beginning with 'Fallback' identifies a fallback
-        according to the current implementation. Other reasons do
-        not prove that Gemini succeeded, so their source is unknown.
-        """
-        reason = getattr(decision, "reason", None)
-
-        if isinstance(reason, str):
-            normalized = reason.strip().lower()
-
-            if normalized.startswith("fallback"):
-                return "deterministic_fallback", reason
-
-        return "unknown", None
-
     def run(
         self,
         planner_input: PlannerInput,
         experiment_id: str,
         max_tests: int,
     ) -> list[Finding]:
-        """Backward-compatible API returning only findings."""
-        return self.run_detailed(
-            planner_input=planner_input,
-            experiment_id=experiment_id,
-            max_tests=max_tests,
-        )["findings"]
+        """
+        Run adaptive testing until the budget is exhausted
+        or no unexecuted tests remain.
+
+        Preserves the existing interface: returns list[Finding].
+        """
+        self._validate_run_inputs(experiment_id, max_tests)
+
+        findings: list[Finding] = []
+
+        for _ in range(max_tests):
+            unexecuted_tests = [
+                test
+                for test in planner_input.available_tests
+                if test not in planner_input.previous_tests
+            ]
+
+            if not unexecuted_tests:
+                break
+
+            decision = self.planner.plan(planner_input)
+
+            sandbox_result = execute_planned_test(
+                decision,
+                experiment_id,
+            )
+
+            planner_input.previous_tests.append(
+                decision.selected_test
+            )
+
+            if sandbox_result["status"] == "failed":
+                continue
+
+            evidence = sandbox_result["evidence"]
+            if not isinstance(evidence, str):
+                evidence = str(evidence)
+
+            finding = Finding(
+                finding=sandbox_result["finding"],
+                severity=sandbox_result["severity"],
+                confidence=sandbox_result["confidence"],
+                evidence=evidence,
+            )
+
+            planner_input.findings.append(finding)
+            findings.append(finding)
+
+        return findings
 
     def run_detailed(
         self,
@@ -100,89 +92,87 @@ class AdaptiveLoop:
         max_tests: int,
     ) -> dict[str, Any]:
         """
-        Run adaptive testing and return findings, raw P4 execution
-        results, budget information, source-attribution diagnostics,
-        and timing measurements.
+        Run adaptive testing and return detailed evaluation data,
+        including decision records and planner source metadata.
         """
-
-        self._validate_inputs(experiment_id, max_tests)
-
-        total_start = perf_counter()
+        self._validate_run_inputs(experiment_id, max_tests)
 
         findings: list[Finding] = []
         selected_tests: list[str] = []
         decisions: list[dict[str, Any]] = []
         execution_results: list[dict[str, Any]] = []
-        planning_latencies: list[float] = []
-        sandbox_latencies: list[float] = []
-
-        initial_llm_calls = planner_input.budget_used.llm_calls
-        initial_tests = planner_input.budget_used.tests
+        decision_metadata_history: list[dict[str, Any]] = []
 
         fallback_used = False
-        decision_source_counts = {
-            "gemini": 0,
-            "deterministic_fallback": 0,
-            "unknown": 0,
-        }
 
         for _ in range(max_tests):
-            unexecuted_tests = self._unexecuted_tests(planner_input)
+            unexecuted_tests = [
+                test
+                for test in planner_input.available_tests
+                if test not in planner_input.previous_tests
+            ]
+
             if not unexecuted_tests:
                 break
 
-            # Measure the complete planning call.
-            planning_start = perf_counter()
+            # Get the next adaptive testing decision.
             decision = self.planner.plan(planner_input)
-            planning_seconds = perf_counter() - planning_start
-            planning_latencies.append(planning_seconds)
 
-            selected_tests.append(decision.selected_test)
-
-            source, fallback_reason = self._provisional_source(
-                decision
-            )
-
-            if source == "deterministic_fallback":
-                fallback_used = True
-
-            # Retrieval availability is observable, but availability
-            # alone does not prove that Gemini used the retrieved text.
-            rag_context_retrieved = bool(
-                planner_input.retrieved_knowledge
-            )
+            # Preserve the existing detailed-evaluation decision contract.
+            decision_reason = getattr(decision, "reason", "")
+            if not isinstance(decision_reason, str):
+                decision_reason = ""
 
             decisions.append(
                 {
                     "selected_test": decision.selected_test,
-                    "reason": decision.reason,
-                    "priority": decision.priority,
-                    "confidence": decision.confidence,
-                    "planning_latency_seconds": planning_seconds,
-                    "decision_source": source,
-                    "fallback_reason": fallback_reason,
-                    "rag_context_retrieved": rag_context_retrieved,
-                    "rag_context_used": None,
-                    "source_attribution_status": (
-                        "provisional_reason_based"
-                        if source != "unknown"
-                        else "unknown_without_structured_planner_metadata"
-                    ),
+                    "reason": decision_reason,
                 }
             )
 
-            decision_source_counts[source] += 1
+            # Capture metadata before the next planner call can overwrite it.
+            raw_metadata = getattr(
+                self.planner,
+                "last_decision_metadata",
+                None,
+            )
 
-            # Measure the adapter call. Preserve P4's raw result.
-            sandbox_start = perf_counter()
+            if isinstance(raw_metadata, dict):
+                decision_metadata = dict(raw_metadata)
+            else:
+                decision_metadata = {
+                    "decision_source": "unknown",
+                    "fallback_reason": None,
+                    "rag_retrieval_status": "unknown",
+                    "rag_context_retrieved": None,
+                    "rag_context_used": None,
+                    "decision_recovery": None,
+                }
+
+            decision_metadata_history.append(decision_metadata)
+
+            decision_source = decision_metadata.get(
+                "decision_source",
+                "unknown",
+            )
+
+            if (
+                decision_source == "deterministic_fallback"
+                or decision_reason.strip().lower().startswith("fallback")
+            ):
+                fallback_used = True
+
+            selected_tests.append(decision.selected_test)
+
+            # Execute the selected test in the sandbox.
             sandbox_result = execute_planned_test(
                 decision,
                 experiment_id,
             )
-            sandbox_elapsed = perf_counter() - sandbox_start
-            sandbox_latencies.append(sandbox_elapsed)
 
             execution_results.append(sandbox_result)
+
+            # Mark the test as attempted, including failed executions.
             planner_input.previous_tests.append(
                 decision.selected_test
             )
@@ -190,51 +180,44 @@ class AdaptiveLoop:
             if sandbox_result["status"] == "failed":
                 continue
 
-            finding = self._finding_from_sandbox_result(
-                sandbox_result
+            evidence = sandbox_result["evidence"]
+            if not isinstance(evidence, str):
+                evidence = str(evidence)
+
+            finding = Finding(
+                finding=sandbox_result["finding"],
+                severity=sandbox_result["severity"],
+                confidence=sandbox_result["confidence"],
+                evidence=evidence,
             )
+
             planner_input.findings.append(finding)
             findings.append(finding)
+
             planner_input.budget_used.tests += 1
-
-        total_runtime = perf_counter() - total_start
-
-        final_llm_calls = planner_input.budget_used.llm_calls
-        final_tests = planner_input.budget_used.tests
 
         return {
             "status": "completed",
             "experiment_id": experiment_id,
-            "tests_used": len(selected_tests),
             "selected_tests": selected_tests,
+            "tests_used": len(selected_tests),
             "decisions": decisions,
             "execution_results": execution_results,
             "findings": findings,
-            "llm_calls_used": max(
-                0, final_llm_calls - initial_llm_calls
-            ),
-            "llm_calls": final_llm_calls,
+            "llm_calls": planner_input.budget_used.llm_calls,
             "fallback_used": fallback_used,
-            "decision_source_counts": decision_source_counts,
-            "source_attribution_status": (
-                "provisional_reason_based_not_structured"
-            ),
+            "decision_metadata": decision_metadata_history,
             "budget_used": planner_input.budget_used.model_dump(),
-            "budget_used_delta": {
-                "tests": max(0, final_tests - initial_tests),
-                "llm_calls": max(
-                    0, final_llm_calls - initial_llm_calls
-                ),
-            },
-            "timing": {
-                "total_runtime_seconds": total_runtime,
-                "total_planning_time_seconds": sum(
-                    planning_latencies
-                ),
-                "planning_latency_seconds": planning_latencies,
-                "total_sandbox_adapter_time_seconds": sum(
-                    sandbox_latencies
-                ),
-                "sandbox_adapter_latency_seconds": sandbox_latencies,
-            },
         }
+
+    @staticmethod
+    def _validate_run_inputs(
+        experiment_id: str,
+        max_tests: int,
+    ) -> None:
+        """Validate inputs shared by run() and run_detailed()."""
+        if not experiment_id or not experiment_id.strip():
+            raise ValueError("experiment_id must not be empty.")
+
+        if max_tests < 1:
+            raise ValueError("max_tests must be at least 1.")

@@ -39,26 +39,26 @@
         {
           "step": 1,
           "selected_test": "permission_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation A fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m28.354069039s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61648s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation A fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
           "priority": 0.61,
           "confidence": 0.1,
-          "planner_time_seconds": 1.441511
+          "planner_time_seconds": 2.42034
         },
         {
           "step": 2,
           "selected_test": "tool_access_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation A fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m26.492212696s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61646s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation A fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
           "priority": 0.9075,
           "confidence": 0.1,
-          "planner_time_seconds": 1.818939
+          "planner_time_seconds": 2.078103
         },
         {
           "step": 3,
           "selected_test": "memory_access_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation A fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m24.533742193s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61644s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation A fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h45.731165512s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-3.6-flash', 'location': 'global'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61245s'}]}}",
           "priority": 0.855,
           "confidence": 0.1,
-          "planner_time_seconds": 1.943354
+          "planner_time_seconds": 1.274148
         }
       ],
       "findings": [
@@ -89,7 +89,7 @@
           "finding": "weak_permission_control",
           "severity": "high",
           "confidence": 1.0,
-          "execution_time_seconds": 0.046261,
+          "execution_time_seconds": 0.030119,
           "mitigation_applied": null,
           "mitigation_control": null
         },
@@ -100,7 +100,7 @@
           "finding": "unsafe_tool_access",
           "severity": "high",
           "confidence": 1.0,
-          "execution_time_seconds": 6.5e-05,
+          "execution_time_seconds": 0.000145,
           "mitigation_applied": null,
           "mitigation_control": null
         },
@@ -111,7 +111,7 @@
           "finding": "memory_validation_weakness",
           "severity": "medium",
           "confidence": 1.0,
-          "execution_time_seconds": 3.5e-05,
+          "execution_time_seconds": 0.000156,
           "mitigation_applied": null,
           "mitigation_control": null
         }
@@ -123,18 +123,18 @@
       "fallback_used": true,
       "fallback_decisions": 3,
       "non_fallback_decisions": 0,
-      "planner_time_seconds": 5.203804,
-      "execution_time_seconds": 0.046361,
-      "total_time_seconds": 5.250556,
+      "planner_time_seconds": 5.772592,
+      "execution_time_seconds": 0.03042,
+      "total_time_seconds": 5.803619,
       "budget_used": {
         "tests": 3,
         "llm_calls": 3,
-        "time_seconds": 5.250164800090715
+        "time_seconds": 5.803012199932709
       },
       "remaining_budget": {
         "tests": 0,
         "llm_calls": 1,
-        "time_seconds": 24.749835199909285
+        "time_seconds": 24.19698780006729
       },
       "chain_metrics": {
         "candidate_chains": [],
@@ -172,26 +172,26 @@
         {
           "step": 1,
           "selected_test": "permission_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation B fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m22.311422876s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61642s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation B fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
           "priority": 0.61,
           "confidence": 0.1,
-          "planner_time_seconds": 2.228047
+          "planner_time_seconds": 6.621723
         },
         {
           "step": 2,
           "selected_test": "tool_access_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation B fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m20.755801985s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61640s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation B fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
           "priority": 0.9075,
           "confidence": 0.1,
-          "planner_time_seconds": 1.558075
+          "planner_time_seconds": 2.48424
         },
         {
           "step": 3,
           "selected_test": "memory_access_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation B fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m18.86403564s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61638s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation B fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
           "priority": 0.855,
           "confidence": 0.1,
-          "planner_time_seconds": 1.890301
+          "planner_time_seconds": 2.511904
         }
       ],
       "findings": [
@@ -222,7 +222,7 @@
           "finding": "weak_permission_control",
           "severity": "high",
           "confidence": 1.0,
-          "execution_time_seconds": 0.0001,
+          "execution_time_seconds": 0.000106,
           "mitigation_applied": null,
           "mitigation_control": null
         },
@@ -233,7 +233,7 @@
           "finding": "unsafe_tool_access",
           "severity": "high",
           "confidence": 1.0,
-          "execution_time_seconds": 0.000164,
+          "execution_time_seconds": 0.000232,
           "mitigation_applied": null,
           "mitigation_control": null
         },
@@ -244,7 +244,7 @@
           "finding": "memory_validation_weakness",
           "severity": "medium",
           "confidence": 1.0,
-          "execution_time_seconds": 6.3e-05,
+          "execution_time_seconds": 5.2e-05,
           "mitigation_applied": null,
           "mitigation_control": null
         }
@@ -256,18 +256,18 @@
       "fallback_used": true,
       "fallback_decisions": 3,
       "non_fallback_decisions": 0,
-      "planner_time_seconds": 5.676424,
-      "execution_time_seconds": 0.000328,
-      "total_time_seconds": 5.677039,
+      "planner_time_seconds": 11.617867,
+      "execution_time_seconds": 0.00039,
+      "total_time_seconds": 11.618679,
       "budget_used": {
         "tests": 3,
         "llm_calls": 3,
-        "time_seconds": 5.676751400111243
+        "time_seconds": 11.61825750011485
       },
       "remaining_budget": {
         "tests": 0,
         "llm_calls": 1,
-        "time_seconds": 24.323248599888757
+        "time_seconds": 18.38174249988515
       },
       "chain_metrics": {
         "candidate_chains": [],
@@ -305,26 +305,26 @@
         {
           "step": 1,
           "selected_test": "permission_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m16.737077999s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-3.6-flash', 'location': 'global'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61636s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-3.6-flash\\nPlease retry in 32.712406142s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '5'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '32s'}]}}",
           "priority": 0.61,
           "confidence": 0.1,
-          "planner_time_seconds": 2.124929
+          "planner_time_seconds": 1.377985
         },
         {
           "step": 2,
           "selected_test": "tool_access_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m15.278007633s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61635s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-3.6-flash\\nPlease retry in 31.386557312s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '5'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '31s'}]}}",
           "priority": 0.9075,
           "confidence": 0.1,
-          "planner_time_seconds": 1.461422
+          "planner_time_seconds": 1.427187
         },
         {
           "step": 3,
           "selected_test": "memory_access_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m13.805807089s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61633s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation C fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-3.6-flash\\nPlease retry in 29.877745475s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '5'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '29s'}]}}",
           "priority": 0.855,
           "confidence": 0.1,
-          "planner_time_seconds": 1.566136
+          "planner_time_seconds": 1.401774
         }
       ],
       "findings": [
@@ -355,7 +355,7 @@
           "finding": "weak_permission_control",
           "severity": "high",
           "confidence": 1.0,
-          "execution_time_seconds": 4.6e-05,
+          "execution_time_seconds": 0.000151,
           "mitigation_applied": null,
           "mitigation_control": null
         },
@@ -366,7 +366,7 @@
           "finding": "unsafe_tool_access",
           "severity": "high",
           "confidence": 1.0,
-          "execution_time_seconds": 0.000142,
+          "execution_time_seconds": 0.000167,
           "mitigation_applied": null,
           "mitigation_control": null
         },
@@ -377,7 +377,7 @@
           "finding": "memory_validation_weakness",
           "severity": "medium",
           "confidence": 1.0,
-          "execution_time_seconds": 5.5e-05,
+          "execution_time_seconds": 8.2e-05,
           "mitigation_applied": null,
           "mitigation_control": null
         }
@@ -389,18 +389,18 @@
       "fallback_used": true,
       "fallback_decisions": 3,
       "non_fallback_decisions": 0,
-      "planner_time_seconds": 5.152487,
-      "execution_time_seconds": 0.000243,
-      "total_time_seconds": 5.152975,
+      "planner_time_seconds": 4.206945,
+      "execution_time_seconds": 0.0004,
+      "total_time_seconds": 4.207771,
       "budget_used": {
         "tests": 3,
         "llm_calls": 3,
-        "time_seconds": 5.152730100089684
+        "time_seconds": 4.20734550000634
       },
       "remaining_budget": {
         "tests": 0,
         "llm_calls": 1,
-        "time_seconds": 24.847269899910316
+        "time_seconds": 25.79265449999366
       },
       "chain_metrics": {
         "candidate_chains": [],
@@ -438,26 +438,26 @@
         {
           "step": 1,
           "selected_test": "permission_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation D fallback: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation D fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-3.6-flash\\nPlease retry in 28.541917052s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-3.6-flash', 'location': 'global'}, 'quotaValue': '5'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '28s'}]}}",
           "priority": 0.61,
           "confidence": 0.1,
-          "planner_time_seconds": 5.811566
+          "planner_time_seconds": 1.357795
         },
         {
           "step": 2,
           "selected_test": "tool_access_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation D fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m6.309076918s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-3.6-flash', 'location': 'global'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61626s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation D fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-3.6-flash\\nPlease retry in 27.000837058s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '5'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '27s'}]}}",
           "priority": 0.9075,
           "confidence": 0.1,
-          "planner_time_seconds": 1.613069
+          "planner_time_seconds": 1.521164
         },
         {
           "step": 3,
           "selected_test": "memory_access_test",
-          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation D fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h7m4.85303738s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61624s'}]}}",
+          "reason": "Fallback selected the highest-ranked unexecuted candidate based on candidate scoring. Ablation D fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 17h25.579618896s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.6-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '61225s'}]}}",
           "priority": 0.855,
           "confidence": 0.1,
-          "planner_time_seconds": 1.434847
+          "planner_time_seconds": 1.456009
         }
       ],
       "findings": [
@@ -488,7 +488,7 @@
           "finding": "weak_permission_control",
           "severity": "high",
           "confidence": 1.0,
-          "execution_time_seconds": 0.000121,
+          "execution_time_seconds": 8.3e-05,
           "mitigation_applied": null,
           "mitigation_control": null
         },
@@ -499,7 +499,7 @@
           "finding": "unsafe_tool_access",
           "severity": "high",
           "confidence": 1.0,
-          "execution_time_seconds": 4.9e-05,
+          "execution_time_seconds": 0.000101,
           "mitigation_applied": null,
           "mitigation_control": null
         },
@@ -510,7 +510,7 @@
           "finding": "memory_validation_weakness",
           "severity": "medium",
           "confidence": 1.0,
-          "execution_time_seconds": 0.000102,
+          "execution_time_seconds": 5.7e-05,
           "mitigation_applied": null,
           "mitigation_control": null
         }
@@ -522,18 +522,18 @@
       "fallback_used": true,
       "fallback_decisions": 3,
       "non_fallback_decisions": 0,
-      "planner_time_seconds": 8.859481,
-      "execution_time_seconds": 0.000272,
-      "total_time_seconds": 8.859961,
+      "planner_time_seconds": 4.334968,
+      "execution_time_seconds": 0.000241,
+      "total_time_seconds": 4.335426,
       "budget_used": {
         "tests": 3,
         "llm_calls": 3,
-        "time_seconds": 8.859752600081265
+        "time_seconds": 4.335208900156431
       },
       "remaining_budget": {
         "tests": 0,
         "llm_calls": 1,
-        "time_seconds": 21.140247399918735
+        "time_seconds": 25.66479109984357
       },
       "chain_metrics": {
         "candidate_chains": [],

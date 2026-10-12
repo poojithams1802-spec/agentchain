@@ -32,6 +32,16 @@ class AdaptivePlanner:
         self.llm_client = GeminiClient()
         self.retriever = HybridKnowledgeRetriever()
         self.scorer = CandidateScorer()
+        # Internal diagnostics; does not change PlannerDecision or the
+        # existing P2/P3 input/output contract.
+        self.last_decision_metadata: dict[str, Any] = {
+            "decision_source": "unknown",
+            "fallback_reason": None,
+            "rag_retrieval_status": "not_started",
+            "rag_context_retrieved": False,
+            "rag_context_used": False,
+            "decision_recovery": None,
+        }
 
     def resolve_ablation_configuration(
         self,
@@ -2184,6 +2194,15 @@ Do not include additional explanation.
                 "[Planner] Using scored fallback decision"
             )
 
+            self.last_decision_metadata.update(
+                {
+                    "decision_source": "deterministic_fallback",
+                    "fallback_reason": reason,
+                    "rag_context_used": False,
+                    "decision_recovery": "ranked_candidate_fallback",
+                }
+            )
+
             return PlannerDecision(
                 selected_test=selected_test,
                 reason=(
@@ -2200,6 +2219,15 @@ Do not include additional explanation.
 
         print(
             "[Planner] Using fallback decision"
+        )
+
+        self.last_decision_metadata.update(
+            {
+                "decision_source": "deterministic_fallback",
+                "fallback_reason": reason,
+                "rag_context_used": False,
+                "decision_recovery": "first_unexecuted_candidate",
+            }
         )
 
         return PlannerDecision(
@@ -2272,6 +2300,13 @@ Do not include additional explanation.
         )
 
         if not config.use_rag:
+            self.last_decision_metadata.update(
+                {
+                    "rag_retrieval_status": "disabled",
+                    "rag_context_retrieved": False,
+                    "rag_context_used": False,
+                }
+            )
             return []
 
         query = self.build_query(
@@ -2280,23 +2315,46 @@ Do not include additional explanation.
         )
 
         if not query:
+            self.last_decision_metadata.update(
+                {
+                    "rag_retrieval_status": "empty_query",
+                    "rag_context_retrieved": False,
+                    "rag_context_used": False,
+                }
+            )
             return []
 
         try:
-            retrieved_knowledge = (
-                self.retriever.retrieve(
-                    query
-                )
-            )
+            retrieved_knowledge = self.retriever.retrieve(query)
 
+            # Normalize malformed/None retriever results into an empty list.
+            if not isinstance(retrieved_knowledge, list):
+                retrieved_knowledge = list(retrieved_knowledge or [])
+
+            has_context = bool(retrieved_knowledge)
+            self.last_decision_metadata.update(
+                {
+                    "rag_retrieval_status": (
+                        "success" if has_context else "empty"
+                    ),
+                    "rag_context_retrieved": has_context,
+                    "rag_context_used": False,
+                }
+            )
             return retrieved_knowledge
 
         except Exception as error:
+            self.last_decision_metadata.update(
+                {
+                    "rag_retrieval_status": "failed",
+                    "rag_context_retrieved": False,
+                    "rag_context_used": False,
+                }
+            )
             print(
                 "[Retriever Warning] "
                 f"{type(error).__name__}: {error}"
             )
-
             return []
 
     # ---------------------------------------------------------
@@ -2313,6 +2371,17 @@ Do not include additional explanation.
 
         Default configuration D preserves the full proposed behavior.
         """
+
+        # Reset per-call diagnostics so a previous decision cannot leak
+        # into this call's result.
+        self.last_decision_metadata = {
+            "decision_source": "unknown",
+            "fallback_reason": None,
+            "rag_retrieval_status": "not_started",
+            "rag_context_retrieved": False,
+            "rag_context_used": False,
+            "decision_recovery": None,
+        }
 
         # None means a legacy/default planner call. Explicit configuration
         # values are used by the Phase 3 ablation runner. Keeping this
@@ -2507,6 +2576,28 @@ Do not include additional explanation.
             decision = self.validate_decision(
                 decision,
                 planner_input
+            )
+
+            self.last_decision_metadata.update(
+                {
+                    "decision_source": "gemini",
+                    "fallback_reason": None,
+                    "rag_context_retrieved": bool(
+                        planner_input.retrieved_knowledge
+                    ),
+                    # Means retrieved context was supplied to the LLM prompt,
+                    # not that the model demonstrably relied on it.
+                    "rag_context_used": bool(
+                        config.use_rag
+                        and planner_input.retrieved_knowledge
+                    ),
+                    "decision_recovery": (
+                        "candidate_validation_or_recovery"
+                        if "because the LLM decision was not valid"
+                        in decision.reason.lower()
+                        else None
+                    ),
+                }
             )
 
             print(

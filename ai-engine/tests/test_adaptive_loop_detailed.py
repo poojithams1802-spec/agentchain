@@ -237,6 +237,64 @@ def test_run_detailed_counts_failed_attempts_and_elapsed_time(monkeypatch):
     assert result["findings"] == []
 
 
+@pytest.mark.parametrize("detailed", [False, True])
+def test_adaptive_loop_stops_at_llm_call_budget(monkeypatch, detailed):
+    planner_calls = []
+    sandbox_calls = []
+
+    class BudgetCountingPlanner:
+        def plan(self, planner_input):
+            planner_calls.append(None)
+            planner_input.budget_used.llm_calls += 1
+            return PlannerDecision(
+                selected_test="permission_test",
+                reason="Select permission test.",
+                priority=0.9,
+                confidence=0.9,
+            )
+
+    def execute_test(decision, experiment_id):
+        sandbox_calls.append(decision.selected_test)
+        return {
+            "status": "completed",
+            "test": decision.selected_test,
+            "finding": "weak_permission_control",
+            "severity": "high",
+            "evidence": "controlled evidence",
+            "confidence": 1.0,
+        }
+
+    monkeypatch.setattr("adaptive_loop.execute_planned_test", execute_test)
+    planner_input = PlannerInput(
+        available_tests=["permission_test", "tool_access_test"],
+        testing_budget=Budget(
+            max_tests=3,
+            max_llm_calls=1,
+            max_time_seconds=10.0,
+        ),
+    )
+    loop = AdaptiveLoop(planner=BudgetCountingPlanner())
+
+    if detailed:
+        result = loop.run_detailed(
+            planner_input=planner_input,
+            experiment_id="llm-call-budget",
+            max_tests=3,
+        )
+        assert result["tests_used"] == 1
+        assert result["llm_calls"] == 1
+    else:
+        result = loop.run(
+            planner_input=planner_input,
+            experiment_id="llm-call-budget",
+            max_tests=3,
+        )
+        assert len(result) == 1
+
+    assert len(planner_calls) == 1
+    assert sandbox_calls == ["permission_test"]
+
+
 @pytest.mark.parametrize(
     ("planning_duration", "execution_duration", "expected_attempts"),
     [
@@ -244,17 +302,21 @@ def test_run_detailed_counts_failed_attempts_and_elapsed_time(monkeypatch):
         (0.02, 0.09, 1),
     ],
 )
+@pytest.mark.parametrize("detailed", [False, True])
 def test_run_detailed_stops_starting_sandbox_when_time_budget_exhausted(
     monkeypatch,
     planning_duration,
     execution_duration,
     expected_attempts,
+    detailed,
 ):
     clock = [0.0]
     sandbox_calls = []
+    planner_calls = []
 
     class TimedPlanner:
         def plan(self, planner_input):
+            planner_calls.append(None)
             clock[0] += planning_duration
             return PlannerDecision(
                 selected_test="permission_test",
@@ -289,17 +351,28 @@ def test_run_detailed_stops_starting_sandbox_when_time_budget_exhausted(
             max_time_seconds=0.1,
         ),
     )
-    result = AdaptiveLoop(planner=TimedPlanner()).run_detailed(
-        planner_input=planner_input,
-        experiment_id="time-budget-exhausted",
-        max_tests=3,
-    )
+    loop = AdaptiveLoop(planner=TimedPlanner())
+    if detailed:
+        result = loop.run_detailed(
+            planner_input=planner_input,
+            experiment_id="time-budget-exhausted",
+            max_tests=3,
+        )
+        assert result["status"] == "budget_exhausted"
+        assert result["selected_tests"] == ["permission_test"]
+        assert result["tests_used"] == expected_attempts
+        assert len(result["execution_results"]) == expected_attempts
+    else:
+        result = loop.run(
+            planner_input=planner_input,
+            experiment_id="time-budget-exhausted",
+            max_tests=3,
+        )
+        assert len(result) == expected_attempts
 
     assert len(sandbox_calls) == expected_attempts
-    assert result["selected_tests"] == ["permission_test"]
-    assert result["tests_used"] == expected_attempts
-    assert len(result["execution_results"]) == expected_attempts
-    assert result["budget_used"]["tests"] == expected_attempts
-    assert result["budget_used"]["time_seconds"] == pytest.approx(
+    assert len(planner_calls) == 1
+    assert planner_input.budget_used.tests == expected_attempts
+    assert planner_input.budget_used.time_seconds == pytest.approx(
         planning_duration + (execution_duration if expected_attempts else 0.0)
     )

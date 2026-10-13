@@ -4,7 +4,8 @@ from sandbox_adapter import (
     execute_planned_test,
     validate_sandbox_response,
 )
-from schemas import PlannerDecision
+from schemas import PlannerDecision, SandboxTestRequest
+from sandbox.test_runner import TEST_MAP, VULNERABILITY_TEST_MAP
 
 
 def create_decision(test_name: str) -> PlannerDecision:
@@ -59,6 +60,21 @@ def test_memory_access_test_execution():
     assert result["finding"] == "memory_validation_weakness"
     assert result["severity"] == "medium"
     assert result["confidence"] == 1.0
+
+
+def test_all_vulnerability_types_are_supported_by_ai_and_sandbox_interfaces():
+    assert set(VULNERABILITY_TEST_MAP.values()) == set(TEST_MAP)
+
+    for vulnerability_id, test_name in VULNERABILITY_TEST_MAP.items():
+        request = SandboxTestRequest(test=test_name)
+        result = execute_planned_test(
+            create_decision(request.test),
+            f"EXP-{vulnerability_id}",
+        )
+
+        assert result["status"] == "completed"
+        assert result["test"] == test_name
+        assert result["confidence"] == 1.0
 
 
 def test_empty_experiment_id_is_rejected():

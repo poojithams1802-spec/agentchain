@@ -50,6 +50,8 @@ class AdaptiveLoop:
             if (
                 planner_input.budget_used.tests
                 >= planner_input.testing_budget.max_tests
+                or planner_input.budget_used.llm_calls
+                >= planner_input.testing_budget.max_llm_calls
                 or planner_input.budget_used.time_seconds
                 >= planner_input.testing_budget.max_time_seconds
             ):
@@ -135,16 +137,9 @@ class AdaptiveLoop:
         tests_attempted = 0
 
         fallback_used = False
+        run_status = "completed"
 
         for _ in range(max_tests):
-            if (
-                planner_input.budget_used.tests
-                >= planner_input.testing_budget.max_tests
-                or planner_input.budget_used.time_seconds
-                >= planner_input.testing_budget.max_time_seconds
-            ):
-                break
-
             unexecuted_tests = [
                 test
                 for test in planner_input.available_tests
@@ -152,6 +147,17 @@ class AdaptiveLoop:
             ]
 
             if not unexecuted_tests:
+                break
+
+            if (
+                planner_input.budget_used.tests
+                >= planner_input.testing_budget.max_tests
+                or planner_input.budget_used.llm_calls
+                >= planner_input.testing_budget.max_llm_calls
+                or planner_input.budget_used.time_seconds
+                >= planner_input.testing_budget.max_time_seconds
+            ):
+                run_status = "budget_exhausted"
                 break
 
             # Get the next adaptive testing decision.
@@ -214,6 +220,7 @@ class AdaptiveLoop:
                 planner_input.budget_used.time_seconds
                 >= planner_input.testing_budget.max_time_seconds
             ):
+                run_status = "budget_exhausted"
                 break
 
             # Execute the selected test in the sandbox.
@@ -256,7 +263,7 @@ class AdaptiveLoop:
             findings.append(finding)
 
         return {
-            "status": "completed",
+            "status": run_status,
             "experiment_id": experiment_id,
             "selected_tests": selected_tests,
             "tests_used": tests_attempted,

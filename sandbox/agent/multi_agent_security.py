@@ -57,13 +57,16 @@ def build_multi_agent_security_scenario() -> AgentRegistry:
     return registry
 
 
-def execute_multi_agent_security_scenario() -> dict[str, Any]:
+def execute_multi_agent_security_scenario(
+    registry: AgentRegistry | None = None,
+) -> dict[str, Any]:
     """
     Execute the controlled V11 -> V10 scenario.
 
     No external systems, networking, or real-world actions are used.
     """
-    registry = build_multi_agent_security_scenario()
+    if registry is None:
+        registry = build_multi_agent_security_scenario()
 
     trust_message = registry.send_message(
         "AGENT_UNTRUSTED",

@@ -39,6 +39,9 @@ class FakeCollection:
                 return deepcopy(document)
         return None
 
+    def count_documents(self, query):
+        return len(self.documents)
+
     def update_one(self, query, update):
         for document in self.documents:
             matches = True
@@ -74,6 +77,9 @@ class FakeDatabase:
         self.experiments = FakeCollection([experiment])
         self.evaluation_results = FakeCollection()
         self.adaptive_run_results = FakeCollection()
+        self.experiment_logs = FakeCollection()
+        self.findings = FakeCollection()
+        self.attack_chains = FakeCollection()
 
 
 def test_start_persists_planner_selection_and_final_execution(
@@ -244,6 +250,104 @@ def test_start_persists_planner_selection_and_final_execution(
     ]
     assert "llm_calls_used" not in response.json()
     assert "budget_used_delta" not in response.json()
+
+
+def test_frontend_create_start_flow_uses_real_planner_and_sandbox(
+    monkeypatch,
+):
+    import planner as planner_module
+
+    monkeypatch.setattr(
+        planner_module,
+        "HybridKnowledgeRetriever",
+        lambda: object(),
+    )
+    planner = planner_module.AdaptivePlanner()
+    database = FakeDatabase({})
+    llm_responses = iter(
+        [
+            {
+                "selected_test": "permission_test",
+                "reason": "Check the permission boundary first.",
+                "priority": 0.9,
+                "confidence": 0.9,
+            },
+            {
+                "selected_test": "tool_access_test",
+                "reason": "Follow up on the permission finding.",
+                "priority": 0.9,
+                "confidence": 0.9,
+            },
+        ]
+    )
+
+    monkeypatch.setattr(main, "db", database)
+    monkeypatch.setattr(main, "planner", planner)
+    monkeypatch.setattr(
+        planner,
+        "retrieve_knowledge",
+        lambda planner_input: [],
+    )
+    monkeypatch.setattr(
+        planner.llm_client,
+        "generate_json_with_timeout",
+        lambda prompt, timeout_ms: next(llm_responses),
+    )
+    client = TestClient(main.app)
+    create_response = client.post(
+        "/experiments",
+        json={
+            "name": "Frontend contract adaptive run",
+            "mode": "adaptive",
+            "max_tests": 2,
+        },
+    )
+
+    assert create_response.status_code == 200
+    experiment_id = create_response.json()["experiment_id"]
+
+    start_response = client.post(
+        f"/experiments/{experiment_id}/start"
+    )
+
+    assert start_response.status_code == 200
+    result = start_response.json()
+    assert result["selected_tests"] == [
+        "permission_test",
+        "tool_access_test",
+    ]
+    assert [item["status"] for item in result["execution_results"]] == [
+        "completed",
+        "completed",
+    ]
+    assert result["findings_created"] == 2
+    assert [item["finding"] for item in result["sandbox_results"]] == [
+        "weak_permission_control",
+        "unsafe_tool_access",
+    ]
+    assert result["validation_result"]["status"] == "validated"
+    assert result["llm_calls"] == 2
+    assert result["fallback_used"] is False
+
+    persisted_experiment = database.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+    assert persisted_experiment["status"] == "completed"
+    assert persisted_experiment["selected_tests"] == result["selected_tests"]
+    assert persisted_experiment["executed_tests"] == result["executed_tests"]
+
+    adaptive_run = database.adaptive_run_results.documents[0]
+    assert adaptive_run["experiment_id"] == experiment_id
+    assert adaptive_run["execution_results"] == result["execution_results"]
+    assert adaptive_run["llm_calls"] == result["llm_calls"]
+
+    assert [item["finding"] for item in database.findings.documents] == [
+        "weak_permission_control",
+        "unsafe_tool_access",
+    ]
+    assert database.attack_chains.documents[0]["steps"] == result["executed_tests"]
+    assert database.evaluation_results.documents[0]["status"] == "validated"
+    assert database.experiment_logs.documents
 
 def test_adaptive_loop_exception_marks_experiment_failed(
     monkeypatch,

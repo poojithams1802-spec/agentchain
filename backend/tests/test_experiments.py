@@ -388,6 +388,69 @@ def test_get_unknown_scenario_returns_404(
         "detail": "Scenario not found: UNKNOWN-SCENARIO"
     }
 
+
+def test_resolve_experiment_tests_uses_registered_phase3_scenario_steps(
+    experiment_client,
+):
+    _, _ = experiment_client
+
+    scenario_tests = main._resolve_experiment_tests(
+        {"scenario_id": "CHAIN-AUTH-TOOL"}
+    )
+
+    assert scenario_tests == [
+        "permission_test",
+        "tool_access_test",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("vulnerability_id", "expected_test"),
+    [
+        ("V01", "permission_test"),
+        ("V02", "tool_access_test"),
+        ("V03", "memory_access_test"),
+        ("V04", "prompt_injection_test"),
+        ("V05", "indirect_prompt_injection_test"),
+        ("V06", "sensitive_data_test"),
+        ("V07", "file_operation_test"),
+        ("V08", "context_manipulation_test"),
+        ("V09", "privilege_propagation_test"),
+        ("V10", "unsafe_delegation_test"),
+        ("V11", "cross_agent_trust_test"),
+        ("V12", "tool_parameter_validation_test"),
+    ],
+)
+def test_resolve_experiment_tests_supports_all_vulnerability_ids(
+    experiment_client,
+    vulnerability_id,
+    expected_test,
+):
+    _, _ = experiment_client
+
+    resolved_tests = main._resolve_experiment_tests(
+        {"vulnerability_ids": [vulnerability_id]}
+    )
+
+    assert resolved_tests == [expected_test]
+
+
+def test_resolve_experiment_tests_preserves_requested_vulnerability_order(
+    experiment_client,
+):
+    _, _ = experiment_client
+
+    resolved_tests = main._resolve_experiment_tests(
+        {"vulnerability_ids": ["V05", "V01", "V12"]}
+    )
+
+    assert resolved_tests == [
+        "indirect_prompt_injection_test",
+        "permission_test",
+        "tool_parameter_validation_test",
+    ]
+
+
 def test_create_phase3_ablation_result_persists_correct_configuration_and_metrics(
     experiment_client,
 ):

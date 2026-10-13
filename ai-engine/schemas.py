@@ -164,6 +164,15 @@ class SandboxTestRequest(BaseModel):
         "permission_test",
         "tool_access_test",
         "memory_access_test",
+        "prompt_injection_test",
+        "indirect_prompt_injection_test",
+        "sensitive_data_test",
+        "file_operation_test",
+        "context_manipulation_test",
+        "privilege_propagation_test",
+        "unsafe_delegation_test",
+        "cross_agent_trust_test",
+        "tool_parameter_validation_test",
     ]
 
 

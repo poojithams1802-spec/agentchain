@@ -55,12 +55,12 @@ def test_day7_full_static_vs_adaptive_comparison():
 
     index = {"value": 0}
 
-    def fake_generate_json(prompt):
+    def fake_generate_json_with_timeout(prompt, timeout_ms):
         response = responses[index["value"]]
         index["value"] += 1
         return response
 
-    planner.llm_client.generate_json = fake_generate_json
+    planner.llm_client.generate_json_with_timeout = fake_generate_json_with_timeout
 
     planner_input = PlannerInput(
         findings=[],

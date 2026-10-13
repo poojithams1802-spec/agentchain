@@ -40,14 +40,14 @@ def test_day7_adaptive_full_pipeline():
 
     response_index = {"value": 0}
 
-    def fake_generate_json(prompt):
+    def fake_generate_json_with_timeout(prompt, timeout_ms):
         index = response_index["value"]
 
         response_index["value"] += 1
 
         return responses[index]
 
-    planner.llm_client.generate_json = fake_generate_json
+    planner.llm_client.generate_json_with_timeout = fake_generate_json_with_timeout
 
     planner_input = PlannerInput(
         findings=[],

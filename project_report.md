@@ -92,7 +92,7 @@ The P3 planner receives findings, previously run and available tests, retrieved 
 
 Candidate scoring in the implementation combines relevance, severity, confidence, expected information gain, and testing-cost efficiency. Budget-aware ranking can apply a cost penalty as tracked budget pressure increases. The planner checks test, LLM-call, and time budgets and validates that an LLM-selected test is available and has not already been executed. If planning fails, its deterministic fallback selects a highest-ranked unexecuted candidate where scoring data is available, otherwise the first unexecuted candidate.
 
-The Day 12 scenario-specific budget was three tests, three LLM calls, and a configured time budget of 30 seconds. A configured/tracked budget should not be treated as a guaranteed wall-clock timeout: the P3 fallback record reports configuration A at 33.259872 seconds, above the configured time value, and strict budget enforcement has not been established.
+The saved Day 12 runner artifacts use a three-test/three-LLM-call limit and a configured 30-second time budget where recorded. In `phase3_ablation_gemini_20261011.json`, configurations A and D report 30.952956 and 31.074635 seconds and end `budget_exhausted`. The tracked budget stops subsequent work but does not demonstrate a hard wall-clock cancellation deadline. The separate 33.259872-second narrative figure is not present in the saved JSON and remains unverified.
 
 ## 9. Attack-Chain Validation and Mitigation Replay
 
@@ -156,13 +156,9 @@ Unmeasured outcomes are N/A, not zero. The available experiments do not establis
 
 Both methods produced the same reported controlled discovery and validation outcome. Adaptive planning used three additional LLM calls and had higher measured execution time in this deterministic controlled run. The results do not establish adaptive superiority.
 
-### Day 12 planner-only records
+### Day 12 A/B/C/D saved runner records
 
-**Record 1 — Earlier P4 ablation observation.** Scenario `DAY11-COMMON-001`, seed 42, maximum three tests and three LLM calls, with the same initial state across A/B/C/D. Each configuration used three tests and three LLM calls; all four selected `permission_test -> tool_access_test -> memory_access_test`. An earlier metric calculation reported positional agreement of 1.0. Fallback-decision counts were A=2, B=0, C=1, and D=1. This positional agreement does not establish comparative successful-LLM selection accuracy or show that any configuration is superior.
-
-**Record 2 — Latest P3 fallback experiment.** All four configurations used fallback, made three LLM calls, and selected the same three predefined tests. Gemini HTTP 503 and HTTP 429 failures were reported. The recorded total times were A=33.259872 seconds, B=9.740067 seconds, C=1.031228 seconds, and D=1.358138 seconds. These are observations from a fallback-affected run, not evidence of which configuration is faster or better. The configured planner time budget was 30 seconds; A's recorded total exceeded it, and strict budget enforcement is not established. P3 reports selection accuracy as unavailable as a valid comparative metric in this run.
-
-The two records are kept separate: decision counts from Record 1 are not the same metric as the all-configurations fallback-used status in Record 2. Neither supports a claim that RAG or chain context improved selection accuracy. Execution-dependent discovery, mitigation, replay, and security-effectiveness metrics remain N/A for the planner-only records.
+The raw evidence and limits are detailed in [experimental_results.md](experimental_results.md). `phase3_ablation_day12.json` records two completed sandbox executions per mode, fallback after HTTP 429, three LLM calls, and `budget_exhausted` for A-D. `phase3_ablation_gemini_20261011.json` records one non-fallback test and budget exhaustion for A/D, while B/C completed three tests using fallback after HTTP 503/504. These records contain sandbox executions but do not form a valid successful-LLM four-way comparison. The older narrative positional-agreement and fallback-count figures are not traceable to a current raw artifact and remain unverified. Neither saved run establishes that RAG or chain context improved planner performance.
 
 ### Multi-agent, chain replay, and software testing
 
@@ -173,8 +169,12 @@ Reported software testing evidence is separate from security outcomes:
 | Software test suite | Result |
 |---|---|
 | Day 16 sandbox/evaluation suite | 44 passed; one dependency deprecation warning |
-| Full sandbox regression | 287 passed; one warning |
-| Backend full regression | 94 passed; one warning |
+| Full sandbox regression | 290 passed; one warning |
+| Backend full regression including integrated test | 149 passed; two warnings |
+| Full AI-engine regression on latest worktree | 264 passed; one warning |
+| Current focused AI-engine budget/adapter/multi-agent/ablation slice | 62 passed; one warning |
+| Focused adaptive-loop tests after budget fix | 10 passed; one warning |
+| Real planner/sandbox API integration test | 1 passed; deterministic LLM stub, no live Gemini call |
 
 These test results support implementation regression status only; they are not measures of vulnerability discovery or security effectiveness.
 
@@ -182,23 +182,49 @@ These test results support implementation regression status only; they are not m
 
 The initial replay with `memory_validation` was ineffective for CHAIN-A, CHAIN-C, and CHAIN-E, which were not disrupted. CHAIN-B and CHAIN-D were disrupted at `memory_access_test`, but residual vulnerable steps remained. They are not failed disruptions. The wrong-control replay demonstrates another failure mode: a control can be applied while no chain step is blocked, the chain continues, and replay validation fails.
 
-The two Day 12 records also preserve different fallback evidence. Record 1 has decision-level fallback counts A=2, B=0, C=1, D=1. Record 2 reports that fallback was used for all four configurations after Gemini HTTP 503 and HTTP 429 failures. For Record 1, specific 503/429 responses cannot be reliably mapped to individual configurations from the available evidence. No additional API logs or run-level mappings are asserted.
+The saved Day 12 JSON records preserve distinct failure evidence: one is all-fallback after HTTP 429 and budget-exhausted across A-D; the other has non-fallback but incomplete A/D and fallback/completed B/C after HTTP 503/504. Narrative-only fallback-decision counts and a second set of timings remain unverified because no matching raw record is present.
 
-**Unresolved evidence discrepancy:** `P3_day16_experimental_results.md` states that each configuration's three selected tests were executed successfully in the sandbox. The consolidated P4 `experimental_results.md` and `research_methodology.md` classify the Day 12 observations as planner-only and mark execution-dependent discovery, mitigation, and replay outcomes N/A. The P3 report references `results/phase3_ablation_day12.json`, but that artifact was not present at the referenced root or under `ai-engine` when inspected. Without the raw result artifact or additional run evidence, this report preserves the discrepancy and does not use the P3 execution statement to fill the P4 N/A outcome metrics.
+**Day 12 evidence reconciliation:** The repository contains `ai-engine/results/phase3_ablation_day12.json` and `phase3_ablation_gemini_20261011.json`; both declare `runner_scope: planner_plus_sandbox` and contain execution records. The first has two completed sandbox executions per configuration, all fallback after HTTP 429, and `budget_exhausted` for A-D. The second has one non-fallback test for A/D (both `budget_exhausted`) and three fallback tests for B/C (both completed, after HTTP 503/504). The derived evaluation JSON reports copied, independently unvalidated accuracy and explicitly marks the comparison invalid. Thus the saved records include sandbox execution, but neither is a valid successful-LLM four-way comparison. The separate narrative figures in `P3_day16_experimental_results.md` do not match these artifacts and remain unverified historical claims. The API-contract route-status discrepancy also remains; code presence does not prove every route is tested.
 
 ## 14. Limitations and Threats to Validity
 
 - **Controlled scope:** Experiments use intentionally vulnerable, synthetic/local sandbox behaviors and do not demonstrate real-world security effectiveness.
 - **Small evaluation set:** Day 7 is a controlled comparison at a three-test budget; Day 12 uses one common scenario across four configurations per record; the multi-agent result covers one stated V11 → V10 scenario; and the correct-control replay covers four chains.
-- **Fallback confounding:** The latest P3 Day 12 run used fallback in every configuration after API failures, so it does not compare successful LLM reasoning across A/B/C/D.
+- **Fallback confounding:** Saved Day 12 artifacts are either all-fallback and budget-exhausted or mix non-fallback incomplete and fallback complete configurations; neither compares successful LLM reasoning across A/B/C/D.
 - **Metric interpretation:** Positional sequence agreement, step validation, chain disruption, blocked-step rate, and vulnerability mitigation are different concepts. A 100% chain-disruption rate does not imply all vulnerabilities were removed.
 - **Performance scope:** P3 Day 12 total times are fallback-affected observations; strict budget enforcement and relative performance conclusions are not supported. Other unrecorded performance measurements are N/A.
-- **Documentation and evidence discrepancies:** The API contract's status for Phase 2 routes differs from current backend route code, and the P3 selected-test execution statement cannot be reconciled with P4's planner-only classification without the referenced raw result artifact.
+- **Documentation and evidence discrepancies:** The API contract's status for Phase 2 routes differs from current backend route code. The P3 Day 16 narrative metrics conflict with the present raw JSON; the raw artifacts have been inspected and the conflicting narrative figures remain unverified.
 - **No statistical generalization:** No statistical significance, confidence interval, model-version comparison, or broad performance estimate is available.
 
-## 15. Conclusion and Future Work
+## 15. Phase 3 Definition of Done Status
 
-The evidence supports a conservative conclusion: AgentChain demonstrates controlled functionality for adaptive planning, local security-knowledge retrieval, deterministic sandbox testing, chain validation, multi-agent scenario validation, and mitigation replay. Day 7 produced equal discovery and validation outcomes at equal test budgets, but does not establish adaptive superiority. The separate Day 12 records do not establish that any ablation configuration is superior; the latest is fallback-affected and lacks valid comparative selection accuracy. Correct-control replays disrupted the evaluated chains, while residual vulnerable steps remained.
+Statuses are based on repository implementation, focused tests, saved experiment artifacts, and the commands recorded for this handoff. “Complete” describes the scoped software deliverable, not security effectiveness.
+
+| Phase 3 deliverable | Status | Evidence / remaining boundary |
+|---|---|---|
+| Local knowledge retrieval, candidate scoring, approved-test planner, chain and multi-agent context | Complete | Implemented in P3; latest full AI-engine suite passed 264, including latest adapter coverage. |
+| Adaptive findings-to-next-test loop and controlled P3→P4 execution | Complete | Real planner + local sandbox/validator are exercised through the API create/start flow with deterministic LLM responses; no live model call. |
+| Test-count and LLM-call budget cutoffs | Complete | Focused post-change adaptive-loop tests: 10 passed; both `run()` and `run_detailed()` stop further work at configured counts. |
+| Tracked execution-time budget | Complete | Tests verify no subsequent planner/sandbox operation starts after tracked time is exhausted. The located P3 specification requires time accounting and `budget_exhausted`, not forced cancellation of an in-flight provider request. |
+| Planner respects configured time budget | Partial | The loop stops subsequent work at tracked exhaustion, but saved A/D totals exceed 30 seconds; whether the intended criterion permits in-flight overruns needs P3/shared-team clarification. |
+| V01–V12 backend/AI/sandbox support | Complete | Backend maps each ID to exactly the requested test; tests cover all 12 IDs and all 12 AI-to-sandbox executions. Sandbox vulnerability tests pass. |
+| Chain execution, dependencies, replay, disruption, residual steps | Complete | Registered dependency, validator, and replay tests pass; full sandbox suite is 290 passed. |
+| Multi-agent interactions | Complete | Local allowed/denied communication, per-agent grants, and planner reasoning tests pass. |
+| Multi-agent validation and disruption | Partial | V11→V10 trigger/order is validated; no multi-agent mitigation/disruption replay evidence was found. |
+| Agent-specific tool permissions | Complete | Registry-level tool assignment and independent per-agent grants are enforced and tested. |
+| P2 API compatibility, persistence, and scenario resolution | Complete | Full backend suite: 149 passed; end-to-end API test uses real planner, local sandbox, and validator. |
+| Browser-driven frontend-to-live-backend workflow | Not Verified | The API test matches the frontend create-then-start request contract, but no browser run against a live backend/database was performed. |
+| A/B/C/D configuration and comparable runner | Complete | Four configurations and same-initial-state runner tests pass; current focused ablation suite passed. |
+| Comparable successful non-fallback live A/B/C/D experiment | Pending External Dependency | No saved artifact has all four configurations complete with valid, successful non-fallback LLM decisions. Requires available Gemini service/quota and a saved same-state, same-budget run with decision-level provenance. |
+| Canonical experiment-record reconciliation | Partial | Raw/derived runs are distinguished; some historical Day 12 narrative figures still lack a matching raw artifact. |
+| Research claims limited to controlled evidence | Complete | Canonical reports restrict claims to the intentionally vulnerable sandbox and do not claim real-world effectiveness or comparative superiority. |
+| Broad security effectiveness or comparative superiority | Not Verified | Current experiments are small controlled sandbox observations; neither effectiveness beyond that scope nor superiority is established. |
+
+Remaining work owners: P3/shared team clarify the budget-respect semantics against recorded overruns; P4 owns multi-agent disruption evidence; P3 plus the external provider own the valid live A/B/C/D run; P3/P4 own final experiment provenance reconciliation; P1/P2 own any required live browser-to-backend acceptance run. Hard in-flight cancellation is not separately specified in Section 18.
+
+## 16. Conclusion and Future Work
+
+The evidence supports a conservative conclusion: AgentChain demonstrates controlled functionality for adaptive planning, local security-knowledge retrieval, deterministic sandbox testing, regular chain validation and replay, and multi-agent V11→V10 validation. It does not yet verify multi-agent chain disruption. Day 7 produced equal discovery and validation outcomes at equal test budgets, but does not establish adaptive superiority. The saved Day 12 runs are fallback-affected, budget-exhausted, or mixed in completion and do not establish that any ablation configuration is superior. Phase 3 is partially complete because a valid successful-LLM A/B/C/D run and multi-agent disruption evidence remain outstanding; planner budget respect is also partial due to saved over-30-second runs.
 
 Future work, clearly outside the present results, should include reconciling the Day 12 execution-record discrepancy with raw artifacts; conducting successful, comparable LLM-backed A/B/C/D runs under documented, verified budget behavior; recording timing components and end-to-end metrics consistently; retaining failure and fallback runs; and expanding controlled scenarios and repetitions before making comparative claims. Any subsequent evaluation should continue to distinguish chain interruption from complete vulnerability mitigation and should not generalize sandbox results to real-world security effectiveness without separate evidence.
 

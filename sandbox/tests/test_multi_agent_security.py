@@ -69,6 +69,24 @@ def test_convenience_runner_returns_validated_chain():
     assert result["validation"]["validated_chain"] is True
 
 
+def test_denied_communication_prevents_v11_v10_chain_trigger():
+    baseline = execute_multi_agent_security_scenario()
+    baseline_validation = validate_multi_agent_security_scenario(baseline)
+    assert baseline_validation["valid"] is True
+    assert baseline["chain_triggered"] is True
+
+    gated_registry = build_multi_agent_security_scenario()
+    gated_registry.get_agent("AGENT_UNTRUSTED").allowed_interactions.clear()
+    after = execute_multi_agent_security_scenario(gated_registry)
+    after_validation = validate_multi_agent_security_scenario(after)
+
+    assert after["communication"]["status"] == "denied"
+    assert after["chain_triggered"] is False
+    assert after_validation["valid"] is False
+    assert after["vulnerabilities"]["V11"]["vulnerable"] is True
+    assert after["vulnerabilities"]["V10"]["vulnerable"] is True
+
+
 def test_validation_rejects_wrong_chain_order():
     result = execute_multi_agent_security_scenario()
 

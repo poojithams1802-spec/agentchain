@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from unittest import result
+import pytest
 os.environ.setdefault("GEMINI_API_KEY", "test-key")
 
 import sys
@@ -282,7 +283,17 @@ def test_real_planner_can_be_used_with_a_deterministic_plan_method(monkeypatch):
     assert result["llm_calls"] == 2
 
 
-def test_slow_planner_does_not_start_sandbox_after_budget_exhaustion():
+@pytest.mark.parametrize(
+    ("decision_reason", "expected_fallback"),
+    [
+        ("Controlled slow decision.", False),
+        ("Fallback: controlled late decision.", True),
+    ],
+)
+def test_slow_planner_records_decision_without_starting_sandbox_after_budget_exhaustion(
+    decision_reason,
+    expected_fallback,
+):
     planner = FakePlanner()
     executions = []
 
@@ -293,7 +304,7 @@ def test_slow_planner_does_not_start_sandbox_after_budget_exhaustion():
 
         return PlannerDecision(
             selected_test="permission_test",
-            reason="Controlled slow decision.",
+            reason=decision_reason,
             priority=0.9,
             confidence=1.0,
         )
@@ -321,6 +332,12 @@ def test_slow_planner_does_not_start_sandbox_after_budget_exhaustion():
 
     assert result["status"] == "budget_exhausted"
     assert executions == []
+    assert result["tests_selected"] == 1
+    assert result["selected_tests"] == ["permission_test"]
+    assert len(result["decisions"]) == 1
+    assert result["llm_calls"] == 1
+    assert result["budget_used"]["tests"] == 0
+    assert result["fallback_used"] is expected_fallback
     assert result["budget_used"]["time_seconds"] >= 0.01
 
 

@@ -2490,8 +2490,6 @@ Do not include additional explanation.
                     ),
                 )
 
-            planner_input.budget_used.llm_calls += 1
-
             remaining_seconds = (
                 planner_input.testing_budget.max_time_seconds
                 - planner_input.budget_used.time_seconds
@@ -2544,6 +2542,8 @@ Do not include additional explanation.
                 None,
             )
 
+            # Count a call only after the remaining-time preflight passes.
+            planner_input.budget_used.llm_calls += 1
             if callable(generate_with_timeout):
                 response_data = generate_with_timeout(
                     prompt,

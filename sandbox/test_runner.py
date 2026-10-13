@@ -74,6 +74,21 @@ TEST_MAP = {
     "tool_parameter_validation_test": run_v12_scenario,
 }
 
+VULNERABILITY_TEST_MAP = {
+    "V1": "permission_test",
+    "V2": "tool_access_test",
+    "V3": "memory_access_test",
+    "V4": "prompt_injection_test",
+    "V5": "indirect_prompt_injection_test",
+    "V6": "sensitive_data_test",
+    "V7": "file_operation_test",
+    "V8": "context_manipulation_test",
+    "V9": "privilege_propagation_test",
+    "V10": "unsafe_delegation_test",
+    "V11": "cross_agent_trust_test",
+    "V12": "tool_parameter_validation_test",
+}
+
 
 def run_test(test_name):
     if test_name not in TEST_MAP:

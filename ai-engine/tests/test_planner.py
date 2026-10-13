@@ -528,6 +528,69 @@ def test_plan_uses_fallback_when_llm_fails(
 
 
 
+@pytest.mark.parametrize(
+    ("used_seconds", "expected_timeout_ms", "expected_llm_calls"),
+    [
+        (25.0, None, 0),
+        (15.25, 14_750, 1),
+    ],
+)
+def test_plan_bounds_provider_timeout_by_remaining_budget_and_counts_requests(
+    monkeypatch,
+    used_seconds,
+    expected_timeout_ms,
+    expected_llm_calls,
+):
+    import planner as planner_module
+    from schemas import BudgetUsed, TestingBudget
+
+    monkeypatch.setattr(
+        planner_module,
+        "HybridKnowledgeRetriever",
+        lambda: object(),
+    )
+    planner = AdaptivePlanner()
+    planner_input = PlannerInput(
+        available_tests=["permission_test"],
+        testing_budget=TestingBudget(
+            max_tests=2,
+            max_llm_calls=2,
+            max_time_seconds=30.0,
+        ),
+        budget_used=BudgetUsed(time_seconds=used_seconds),
+    )
+    monkeypatch.setattr(planner, "retrieve_knowledge", lambda state: [])
+    provider_timeouts = []
+
+    def fake_generate_json_with_timeout(prompt, timeout_ms):
+        provider_timeouts.append(timeout_ms)
+        return {
+            "selected_test": "permission_test",
+            "reason": "Use the only available approved test.",
+            "priority": 0.9,
+            "confidence": 0.9,
+        }
+
+    monkeypatch.setattr(
+        planner.llm_client,
+        "generate_json_with_timeout",
+        fake_generate_json_with_timeout,
+    )
+
+    decision = planner.plan(planner_input)
+
+    assert decision.selected_test == "permission_test"
+    assert planner_input.budget_used.llm_calls == expected_llm_calls
+    if expected_timeout_ms is None:
+        assert provider_timeouts == []
+        assert planner.last_decision_metadata["decision_source"] == (
+            "deterministic_fallback"
+        )
+    else:
+        assert provider_timeouts == [expected_timeout_ms]
+        assert provider_timeouts[0] <= (30.0 - used_seconds) * 1000
+
+
 def test_prompt_includes_retrieved_knowledge():
 
     planner = AdaptivePlanner()

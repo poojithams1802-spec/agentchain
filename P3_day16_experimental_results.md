@@ -78,14 +78,14 @@ use_chain_context
 
 ## 4. Experimental Setup
 
-The latest recorded ablation experiment used:
+The P3 narrative originally described an ablation experiment with:
 
 - Study: `phase3_ablation`
 - Same initial state across configurations: `True`
 - Maximum tests: `3`
 - Maximum LLM calls: `3`
 - Maximum planner time budget: `30.0` seconds
-- Three candidate tests were selected/executed per configuration.
+- Three candidate tests described as selected/executed per configuration.
 - The same initial scenario was used for A, B, C, and D.
 
 Selected tests:
@@ -96,7 +96,7 @@ tool_access_test
 memory_access_test
 ```
 
-The experiment result was saved to:
+The narrative attributes the result to:
 
 ```text
 results/phase3_ablation_day12.json
@@ -106,7 +106,7 @@ results/phase3_ablation_day12.json
 
 ## 5. Latest A/B/C/D Results
 
-The latest reproducible run produced the following record.
+The following figures are retained as a historical narrative record. They do not match the saved `phase3_ablation_day12.json` artifact currently in the repository and are not treated as verified raw metrics.
 
 | Config | Mode | Fallback | LLM Calls | Selected Tests | Total Time |
 |---|---|---:|---:|---|---:|
@@ -115,20 +115,29 @@ The latest reproducible run produced the following record.
 | C | `llm_chain` | Yes | 3 | permission, tool access, memory access | 1.031228 s |
 | D | `llm_rag_chain` | Yes | 3 | permission, tool access, memory access | 1.358138 s |
 
-All four configurations used the same initial state and selected the same three tests.
+The saved JSON instead reports two selected tests and two completed sandbox executions per configuration, three LLM calls, fallback after HTTP 429, and `budget_exhausted` for all four modes. The raw artifact takes precedence for current reported results.
 
-Execution completed successfully for the selected sandbox tests.
+### Saved artifact evidence
+
+| Artifact | Configuration outcomes |
+|---|---|
+| `results/phase3_ablation_day12.json` | A-D: 2/3 tests selected, 2 completed sandbox executions, 3 LLM calls, fallback after HTTP 429, `budget_exhausted`. |
+| `results/phase3_ablation_gemini_20261011.json` | A/D: one non-fallback test and `budget_exhausted` at 30.952956 s / 31.074635 s; B/C: 3 fallback tests, completed after HTTP 503 / 503+504, at 12.634323 s / 23.548119 s. |
+
+Neither saved artifact is a valid successful non-fallback A/B/C/D comparison. The earlier `*_before_*` JSON files are retained historical snapshots.
+
+The derived `results/phase3_ablation_evaluation_20261011.json` names the Gemini runner artifact as its source, reports A=0.3333 and B/C/D=1.0 selection accuracy, and records fallback-decision counts A=0, B=2, C=3, D=3. It marks the performance comparison invalid and says the accuracy was copied rather than independently validated. These values are not evidence of comparative accuracy. The other narrative fallback counts (A=2, B=0, C=1, D=1) remain unresolved against the saved evaluation record.
 
 ---
 
 ## 6. LLM Availability and Fallback Behavior
 
-During the ablation execution, Gemini requests encountered service/quota failures, including:
+The saved artifacts record Gemini service/quota failures, including:
 
 - HTTP 503 `UNAVAILABLE`.
 - HTTP 429 quota/rate-limit behavior.
 
-As a result, the planner's deterministic fallback path was used for all four configurations.
+In `phase3_ablation_day12.json`, fallback was used for A-D. In `phase3_ablation_gemini_20261011.json`, only B and C used fallback; A and D each made one non-fallback decision before exhausting their time budget. The narrative claim that all four used fallback applies to the unreconciled report figures above and is not confirmed by that artifact.
 
 This is an important experimental condition.
 
@@ -145,7 +154,7 @@ However, this run does **not** provide a valid comparison of successful LLM-only
 
 The observed timing differences must not be interpreted as evidence that one ablation configuration is inherently faster or better.
 
-All four configurations used fallback behavior, and therefore the run does not isolate the intended successful LLM reasoning differences.
+The saved runs do not isolate the intended successful LLM reasoning differences: one is entirely fallback-affected, and the other mixes incomplete non-fallback A/D with fallback B/C.
 
 In particular:
 
@@ -162,13 +171,13 @@ These values are recorded for reproducibility only.
 
 ## 7. Selection Accuracy
 
-Selection accuracy was not available as a valid comparative metric in this run.
+Selection accuracy is not available as a valid comparative metric in the saved runs.
 
 Reason:
 
-- Gemini reasoning was unavailable.
-- The deterministic fallback selected the same predefined tests across configurations.
-- The experiment therefore did not produce an independent successful-LLM selection comparison between A, B, C, and D.
+- `phase3_ablation_day12.json` used fallback in every configuration.
+- `phase3_ablation_gemini_20261011.json` did not complete comparable non-fallback decisions across all four modes.
+- The saved artifacts therefore do not produce a successful-LLM selection comparison between A, B, C, and D.
 
 Consequently, no claim is made that RAG or attack-chain context improved selection accuracy in this experiment.
 
@@ -199,7 +208,7 @@ The experiment runner checks the budget before and after planning/execution step
 
 The 30-second value is treated as a tracked planning/testing budget rather than a hard operating-system timeout on an external LLM request. A blocking API request can therefore cause an individual measured run to exceed the nominal budget before the runner can update the accounting.
 
-This distinction is important when interpreting the 33.259872-second result for configuration A.
+This distinction is important when interpreting the 33.259872-second narrative value for configuration A. That value does not match the saved JSON artifact and remains unverified; the verified 20261011 artifact records 30.952956 seconds for A and 31.074635 seconds for D.
 
 ---
 
@@ -370,7 +379,7 @@ results/phase3_ablation_day12.json
 
 ## 14. Final P3 Position
 
-P3's Phase 3 planner/RAG implementation is functionally complete and regression-tested.
+The core P3 planner/RAG mechanisms and regression coverage are implemented. The planner tracks execution time and stops subsequent operations, but saved A/D totals exceed the configured 30 seconds; Section 18's “planner respects the budget” criterion remains partial pending clarification. The specification does not separately mandate hard cancellation. A valid live A/B/C/D comparison remains unresolved. Section 18's multi-agent disruption criterion is also unverified: Day 14 tests chain triggering and validation, not mitigation or replay disruption.
 
 The implementation provides:
 
@@ -400,16 +409,26 @@ The appropriate research statement is therefore:
 | Planner/RAG methodology | Complete |
 | A/B/C/D ablation configurations | Complete |
 | Ablation runner | Complete |
-| Adaptive budget tracking | Complete |
+| Adaptive test and LLM-call budget cutoffs | Complete; 10 focused tests passed after the latest change |
+| Tracked adaptive execution-time budget | Complete; tests prevent subsequent work after the tracked budget expires |
+| Planner respects configured time budget | Partial; saved A/D totals exceed 30 seconds and in-flight overrun semantics are undefined |
+| V01-V12 AI/P4 adapter and backend selection | Complete; exact test mapping covered for all 12 IDs and all 12 local sandbox executions pass |
 | Chain reasoning | Complete |
 | Residual-chain reasoning | Complete |
-| Multi-agent reasoning | Complete |
+| Multi-agent planner reasoning and V11->V10 chain triggering | Complete; focused planner and sandbox suites pass |
+| Multi-agent validation and disruption | Partial; chain order is validated, but no V11->V10 mitigation/replay disruption result is recorded |
+| Agent-specific tool permission enforcement | Complete; registry allow/deny/unassigned cases covered |
 | Trust/delegation reasoning | Complete |
 | Ablation tests | 11 passed |
 | Multi-agent/E2E tests | 19 passed |
-| Full AI-engine regression | 248 passed |
-| Fallback experiment | Complete |
-| Experimental-results record | Complete |
+| Historical full AI-engine regression | 248 passed at the time of this report |
+| Full AI-engine regression on latest worktree | 264 passed; one warning |
+| Focused AI-engine budget/adapter/multi-agent/ablation slice | 62 passed |
+| Full sandbox regression | 290 passed |
+| Full backend regression | 149 passed |
+| Integrated API/planner/sandbox/validator test | 1 passed with deterministic LLM responses |
+| Fallback/failure experiment records | Complete as records; not valid comparative evidence |
+| Canonical experiment-results reconciliation | Partial; narrative-only Day 12 values remain unverified |
 | Comparative successful-LLM ablation | Pending Gemini availability |
 
 ---
@@ -418,7 +437,7 @@ The appropriate research statement is therefore:
 
 Do not treat the current fallback run as the final comparative A/B/C/D result.
 
-Before rerunning the ablation, verify that Gemini is available and that sufficient quota exists for the required LLM calls.
+Before rerunning the ablation, verify Gemini model/service availability and sufficient quota for at least 12 successful planner requests (three per configuration), plus retries. Do not remove or overwrite the existing failure and fallback artifacts.
 
 If Gemini becomes available, rerun the same A/B/C/D experiment with:
 
@@ -427,5 +446,7 @@ If Gemini becomes available, rerun the same A/B/C/D experiment with:
 - the same candidate/test pool,
 - the same evaluation procedure,
 - and the same result-recording format.
+
+The located Phase 3 specification defines a tracked 30-second budget and `budget_exhausted` outcome, not hard cancellation of an in-flight request. If the project requires a strict wall-clock deadline beyond that specification, define it as a separate acceptance requirement before implementing cancellation.
 
 This preserves comparability between the fallback experiment and any later successful-LLM experiment.

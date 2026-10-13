@@ -67,7 +67,9 @@ from sandbox.chains.chain_executor import (
     chain_result_to_research_result,
 )
 from sandbox.chains.chain_replay_executor import replay_chain
-from sandbox.chains.chain_registry import get_chain as get_registered_chain
+from sandbox.chains.chain_registry import (
+    get_chain as get_registered_chain,
+)
 from sandbox.evaluation.mitigation_evaluation import (
     build_mitigation_experiment_record,
 )
@@ -75,6 +77,8 @@ from sandbox.evaluation.phase2_runner import run_all_phase2_experiments
 from sandbox.evaluation.phase2_metrics import calculate_phase2_metrics
 from sandbox.evaluation.research_metrics import calculate_research_metrics
 from sandbox.execution.adaptive_test_executor import execute_selected_test
+from sandbox.execution.sandbox_executor import ALLOWED_TESTS
+from sandbox.test_runner import VULNERABILITY_TEST_MAP
 from sandbox.validator.chain_validator import (
     EXPECTED_FINDINGS,
     ChainValidator,
@@ -147,6 +151,95 @@ def add_attack_chain(
     db.attack_chains.insert_one(chain_entry)
 
     return chain_id
+
+
+def _resolve_experiment_tests(experiment: dict) -> list[str]:
+    """Resolve the approved sandbox tests for the experiment.
+
+    Preserve the original legacy default when no Phase 3 scenario fields were
+    provided. If the caller explicitly selects a registered scenario or
+    vulnerability set, use only tests from that registered chain metadata and
+    reject unknown scenario IDs or incompatible vulnerability IDs.
+    """
+    legacy_default_tests = [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test",
+    ]
+
+    scenario_id = experiment.get("scenario_id")
+    vulnerability_ids = experiment.get("vulnerability_ids") or []
+
+    if not scenario_id and not vulnerability_ids:
+        return legacy_default_tests
+
+    if scenario_id:
+        scenario = get_scenario(scenario_id)
+        if scenario is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Scenario not found: {scenario_id}",
+            )
+        ordered_tests = []
+        seen = set()
+        for step in scenario.get("steps", []):
+            if step in ALLOWED_TESTS and step not in seen:
+                ordered_tests.append(step)
+                seen.add(step)
+        if not ordered_tests:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Scenario {scenario_id} does not expose approved sandbox tests.",
+            )
+        return ordered_tests
+
+    requested_vulnerabilities = [
+        vulnerability_id
+        for vulnerability_id in vulnerability_ids
+        if isinstance(vulnerability_id, str) and vulnerability_id.strip()
+    ]
+    if not requested_vulnerabilities:
+        return legacy_default_tests
+
+    def canonical_vulnerability_id(vulnerability_id: str) -> str:
+        value = vulnerability_id.strip().upper()
+        if value.startswith("V") and value[1:].isdigit():
+            return f"V{int(value[1:])}"
+        return value
+
+    vulnerability_test_map = {
+        canonical_vulnerability_id(vulnerability_id): test_name
+        for vulnerability_id, test_name in VULNERABILITY_TEST_MAP.items()
+    }
+    unsupported = [
+        vulnerability_id
+        for vulnerability_id in requested_vulnerabilities
+        if canonical_vulnerability_id(vulnerability_id)
+        not in vulnerability_test_map
+    ]
+    if unsupported:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unsupported vulnerability IDs for approved Phase 3 testing: "
+                + ", ".join(sorted(unsupported))
+            ),
+        )
+
+    ordered_tests = [
+        vulnerability_test_map[canonical_vulnerability_id(vulnerability_id)]
+        for vulnerability_id in requested_vulnerabilities
+    ]
+
+    if not ordered_tests:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Requested vulnerability IDs do not resolve to any registered "
+                "approved sandbox tests."
+            ),
+        )
+    return ordered_tests
 
 
 def _p4_chain_definition_mismatch(
@@ -1445,11 +1538,7 @@ def start_experiment(
     # Day 7 Adaptive Orchestration
     # ----------------------------------------
 
-    available_tests = [
-        "permission_test",
-        "tool_access_test",
-        "memory_access_test",
-    ]
+    available_tests = _resolve_experiment_tests(experiment)
 
     max_tests = min(
         int(experiment["max_tests"]),

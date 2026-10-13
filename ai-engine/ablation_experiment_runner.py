@@ -342,11 +342,6 @@ class AblationExperimentRunner:
             # Charge planner time immediately, before starting sandbox execution.
             state.budget_used.time_seconds += planner_elapsed
 
-            # Do not start a sandbox test if planning exhausted the time budget.
-            if self.planner.budget_exhausted(state):
-                status = "budget_exhausted"
-                break
-
             selected_tests.append(
                 decision.selected_test
             )
@@ -365,6 +360,12 @@ class AblationExperimentRunner:
                     ),
                 }
             )
+
+            # Keep the completed planner decision in the record, but do not
+            # begin sandbox work after the tracked time budget is exhausted.
+            if self.planner.budget_exhausted(state):
+                status = "budget_exhausted"
+                break
 
             # Record the selected test before execution, matching the
             # existing AdaptiveLoop/P4 contract.

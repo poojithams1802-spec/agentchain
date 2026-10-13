@@ -1,3 +1,5 @@
+import pytest
+
 from sandbox.agent.multi_agent import AgentRegistry
 
 
@@ -44,6 +46,44 @@ def test_agent_metadata_is_preserved():
     assert agent.trust_level == 0.9
     assert "read" in agent.permissions
     assert "search" in agent.tools
+
+
+def test_tool_permissions_are_enforced_per_agent():
+    registry = build_registry()
+    registry.register_tool(
+        "agent_research",
+        "search",
+        lambda: "research result",
+    )
+    registry.register_tool(
+        "agent_planning",
+        "planner",
+        lambda: "planning result",
+    )
+    registry.set_tool_permission("agent_research", "search", True)
+    registry.set_tool_permission("agent_planning", "planner", False)
+
+    assert registry.execute_tool("agent_research", "search") == {
+        "status": "success",
+        "tool": "search",
+        "result": "research result",
+    }
+    assert registry.execute_tool("agent_planning", "planner") == {
+        "status": "denied",
+        "tool": "planner",
+        "message": "Permission denied",
+    }
+    assert registry.execute_tool("agent_planning", "search")["status"] == "denied"
+
+
+def test_cannot_register_or_grant_unassigned_tool():
+    registry = build_registry()
+
+    with pytest.raises(ValueError, match="not assigned to agent"):
+        registry.register_tool("agent_research", "planner", lambda: None)
+
+    with pytest.raises(ValueError, match="not assigned to agent"):
+        registry.set_tool_permission("agent_research", "planner", True)
 
 
 def test_allowed_interaction_is_detected():

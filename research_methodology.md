@@ -15,7 +15,7 @@ These are descriptive controlled-evaluation questions. The available experiments
 
 The vulnerability and replay experiments run against AgentChain's intentionally vulnerable, deterministic sandbox test functions. The sandbox executor accepts a fixed set of test names and returns controlled findings and evidence; mitigation is applied through registered local controls. The Day 14 multi-agent implementation describes its scenario as synthetic and local-only, and uses a local agent registry rather than network communication.
 
-The Day 7 and Day 12 planner evaluations are distinct from complete end-to-end security evaluations. In particular, Day 12 records planner selections, budget use, and fallback decisions; it does not execute sandbox tests to measure discovery or mitigation outcomes. The Day 16 evaluation and project regression test counts are software-test evidence, not attack-discovery or security-effectiveness metrics.
+The Day 7 and Day 12 planner comparisons are distinct from complete security-effectiveness evaluations. The saved Day 12 runner artifacts record planner decisions and sandbox executions, but do not evaluate mitigation or same-chain replay. Fallback and budget exhaustion make those records unsuitable for a successful four-way LLM comparison. The Day 16 evaluation and project regression test counts are software-test evidence, not attack-discovery or security-effectiveness metrics.
 
 No experiment described here evaluates production agents, real users, external targets, or real-world security impact. Controlled sandbox results do not demonstrate real-world security effectiveness.
 
@@ -36,7 +36,7 @@ The designs use controlled inputs, explicit budgets where available, and separat
 | Study | Design and controlled conditions | Scope of measurement |
 |---|---|---|
 | Day 7 static vs adaptive | Same registered three-step scenario and equal maximum budget of 3 tests; the controlled runner supplies three predetermined adaptive responses | Test/finding/chain/validation counts, LLM calls, fallback status, and recorded test execution cost |
-| Day 12 A/B/C/D ablation | Scenario `DAY11-COMMON-001`, seed 42, maximum 3 tests, maximum 3 LLM calls, configured time budget of 30 seconds; same initial scenario state across configurations | Planner selection, budget fields, selection accuracy, fallback count, and status; execution-dependent outcomes are N/A |
+| Day 12 A/B/C/D ablation | Saved `phase3_ablation_day12.json` and `phase3_ablation_gemini_20261011.json` runner records; common initial state; configured budgets as recorded in each artifact | Planner decisions, fallback, budget status, controlled sandbox executions, and available accuracy; neither saved run is a valid successful-LLM four-way comparison |
 | Day 14 multi-agent | Controlled two-agent local scenario; V11 cross-agent trust followed by V10 unsafe delegation; controlled message delivery | Whether the V11 -> V10 scenario triggers and validates in order |
 | Day 15 correct-control replay | Four registered chains; baseline execution, one selected control, and replay of the same chain | Chain validation before/after, blocked steps, disruption, and residual vulnerable steps |
 | Initial ineffective-control replay | Five chains evaluated with `memory_validation` selected | Whether that control disrupts each chain and which steps remain vulnerable; ineffective cases are retained |
@@ -65,7 +65,7 @@ Day 12 invokes the existing planner ablation suite through the common Day 11 sce
 
 The expected sequence is `permission_test -> tool_access_test -> memory_access_test`. Selection accuracy is calculated only when expected tests are supplied: the implementation compares corresponding positions and divides the correct-position count by the smaller of the expected and selected sequence lengths. For the reported full-length three-test sequence, this yields the recorded sequence-selection metric. The definition is positional agreement over compared entries, not a separate end-to-end discovery or security-success rate.
 
-Fallbacks are counted from planner decisions: an explicit `fallback=true` decision is counted; otherwise a decision whose reason text contains "fallback" is counted. Budget use and selected tests may be reported from planner output. Metrics that require sandbox execution — including tests executed, vulnerabilities or chains discovered, mitigation, replay, and associated timing — are N/A in this planner-only comparison. The study does not establish that any configuration is superior.
+Fallback is reported both as a run-level Boolean and as decision-level evidence where the artifact supplies it; these measures are not interchangeable. The saved `phase3_ablation_day12.json` records two completed sandbox executions per configuration before budget exhaustion. `phase3_ablation_gemini_20261011.json` records one execution each for A/D and three each for B/C, with A/D non-fallback and incomplete and B/C fallback and complete. Its derived evaluation JSON reports copied, not independently validated selection accuracy and marks the comparison invalid. The recorded test executions are controlled outcomes, but they do not make either run a valid A/B/C/D comparison. Mitigation and same-chain replay metrics are N/A for these artifacts. No configuration is established as superior.
 
 ## 7. Controlled Vulnerability and Attack-Chain Evaluation
 
@@ -81,6 +81,8 @@ The Day 14 scenario builds a local registry containing an untrusted Research age
 
 The chain-triggered condition requires both V11 and V10 to be vulnerable and the message status to be delivered. The scenario validator checks the chain ID, triggered state, delivered communication, vulnerable status for each finding, and exact ordered vulnerability IDs. This is a controlled two-agent demonstration with explicit local communication rules, not a multi-agent deployment or broad sample of agent interactions.
 
+This scenario validates triggering and chain order only. It does not apply a mitigation or replay the V11→V10 chain, so multi-agent chain disruption is not established by the Day 14 result.
+
 ## 9. Mitigation, Same-Attack Replay, and Validation
 
 The chain replay implementation clears mitigation state, executes all steps of a registered chain as the baseline, validates baseline step evidence, applies one registered control, and executes the same chain steps again. It identifies a step as blocked only when the replay result has `mitigation_applied=true` and its evidence reports `result="attack_blocked"`. Every replayed step not meeting that condition is included in the residual vulnerable-step list. A chain is marked disrupted when at least one step is blocked.
@@ -95,7 +97,7 @@ The following definitions follow the implementation where its calculation logic 
 
 | Metric | Calculation or rule | Interpretation |
 |---|---|---|
-| Tests executed | Number of executed test entries recorded for an experiment | Work performed in the recorded run; for Day 12 planner-only output, execution count is N/A |
+| Tests executed | Number of executed test entries recorded for an experiment | Work performed in the recorded run; report N/A only when no execution records are present |
 | Findings | Number of finding entries recorded | Count of controlled findings, not a measure of real-world vulnerability prevalence |
 | Candidate chains | Number of candidate-chain entries recorded | Chains proposed/constructed before the validation distinction |
 | Validated chains | Number of validated-chain entries recorded | Candidate chains meeting the experiment's validation condition |
@@ -118,11 +120,11 @@ The research dataset stores experiment records and its summaries aggregate count
 
 The sandbox executor records elapsed time around each deterministic `run_test` invocation using a performance counter and records a test count of one. Baseline and adaptive evaluators aggregate available per-test execution-cost fields. Day 7 reports approximately 0.0000128 seconds for static execution and approximately 0.0000824 seconds for adaptive execution in the documented controlled run. These values are specific to the recorded execution and are not general performance estimates.
 
-Day 12 includes a configured time budget of 30 seconds and can report planner budget time if present, but the verified experiment did not record a usable selection timing result. Its selection timing, RAG latency, and end-to-end experiment time are N/A. Day 15 replay latency is N/A where not recorded. Day 16's 74.29 seconds is the evaluation test-suite runtime, not the runtime of a security experiment. No additional timing measurement is inferred.
+The planner and adaptive loop track elapsed time and stop beginning subsequent work after the recorded budget is exhausted. This is a between-operation cutoff, not guaranteed cancellation of an in-flight LLM request or hard end-to-end deadline. In `phase3_ablation_gemini_20261011.json`, A and D report total times just over the configured 30 seconds and finish `budget_exhausted`; this is retained as observed behavior. Day 15 replay latency is N/A where not recorded. Day 16's 74.29 seconds is the evaluation test-suite runtime, not the runtime of a security experiment. No additional timing measurement is inferred.
 
 ## 12. LLM/API Fallback and Failure-Case Handling
 
-Day 12 fallback counts are A=2, B=0, C=1, and D=1. Gemini/API availability affected some runs. The available evidence does not reliably map specific 503/429 responses to individual configurations; no additional API logs or configuration-level error mapping are assumed. Day 7 reports `fallback=false` for both methods, and its controlled runner supplies predetermined planner responses.
+The saved `phase3_ablation_day12.json` records HTTP 429 fallback in A-D. The saved `phase3_ablation_gemini_20261011.json` records non-fallback selections for A/D and fallback after 503/504 failures for B/C. Separate narrative fallback counts and timing figures that cannot be mapped to a raw artifact remain unverified. Day 7 reports `fallback=false` for both methods, and its controlled runner supplies predetermined planner responses.
 
 Failure outcomes remain part of the report rather than being filtered from comparisons. The initial replay records CHAIN-A, CHAIN-C, and CHAIN-E as chains not disrupted by the selected `memory_validation` control. CHAIN-B and CHAIN-D were disrupted at `memory_access_test` but retained residual vulnerable steps. Wrong-control replay is retained as a failure case because the attack may continue and replay validation may fail. Failed or ineffective outcomes must not be recoded as successful mitigation.
 
@@ -133,7 +135,7 @@ Missing or unrecorded values are reported as N/A, never as zero. API errors are 
 | Study | Recorded reproducibility information |
 |---|---|
 | Day 7 | Equal static/adaptive test budget of 3; controlled scenario `CHAIN-AUTH-TOOL-MEM`; experiment configuration records seed 42; controlled runner supplies three adaptive responses |
-| Day 12 | Scenario `DAY11-COMMON-001`; seed 42; maximum 3 tests; maximum 3 LLM calls; configured time budget of 30 seconds; same initial scenario state across A-D |
+| Day 12 saved runs | `ai-engine/results/phase3_ablation_day12.json` and `phase3_ablation_gemini_20261011.json`; both report the same initial state across A-D; per-configuration budgets, fallback, selected tests, executions, and statuses are in the raw JSON |
 | Day 14 | Controlled two-agent local scenario; chain order V11 -> V10; communication result and vulnerability states are included in the scenario record |
 | Day 15 | Registered chain ID, selected control, baseline step results, post-control replay results, blocked steps, residual steps, and validation outcomes are included in replay records |
 | Day 16 evaluation | 44 passed, no evaluation test failures, one dependency deprecation warning; suite runtime 74.29 seconds |
@@ -146,8 +148,8 @@ The implementation references include [Day 7 configuration](sandbox/evaluation/d
 
 - **Sandbox scope:** The vulnerability and chain behaviors are controlled synthetic tests in an intentionally vulnerable sandbox. Their outcomes do not establish real-world security effectiveness.
 - **Small controlled evaluation set:** Day 7 compares a single reported controlled run per method; Day 12 observes four configurations in one common planner scenario; Day 14 evaluates a specified two-agent chain; and the correct-control replay covers four chains. Broad generalization is not supported.
-- **Planner-only versus end-to-end scope:** Day 12 selection and fallback observations do not include sandbox discovery, mitigation, same-attack replay, or execution timing. They cannot be treated as end-to-end security outcomes.
-- **API availability:** Gemini/API availability affected some Day 12 runs. Fallback counts are recorded, but 503/429 responses cannot be reliably attributed to particular configurations from the available evidence.
+- **Ablation validity:** The saved Day 12 artifacts include sandbox executions, but the all-fallback/budget-exhausted run and the mixed fallback/incomplete run do not isolate successful LLM A/B/C/D behavior. Neither includes mitigation or same-attack replay outcomes.
+- **API availability and provenance:** Saved raw JSON attributes 429 failures to the all-fallback run and 503/504 failures to B/C in the mixed run. Other narrative counts/timings do not match the saved records and are not used as verified metrics.
 - **Residual vulnerabilities:** Correct-control replay disrupted all four evaluated chains but left eight vulnerable steps. Initial ineffective-control cases further show that control selection matters in these scenarios.
 - **Metric construct validity:** Chain validation verifies expected findings, evidence, and dependency order; it does not establish a real-world exploit. Chain disruption requires only one blocked step by the replay implementation and is not equivalent to eliminating every vulnerability.
 - **Incomplete performance evidence:** Day 7 per-test execution cost is available, but Day 12 selection timing, RAG latency, end-to-end time, and Day 15 replay latency are N/A where not recorded. The Day 16 suite runtime is software-test duration, not security-experiment latency.

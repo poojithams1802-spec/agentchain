@@ -116,6 +116,54 @@ class AgentRegistry:
             for agent in self._agents.values()
         ]
 
+    def register_tool(
+        self,
+        agent_id: str,
+        tool_name: str,
+        tool: Any,
+    ) -> None:
+        controlled_agent = self.get_agent(agent_id)
+        if tool_name not in controlled_agent.tools:
+            raise ValueError(
+                f"Tool is not assigned to agent {agent_id}: {tool_name}"
+            )
+        controlled_agent.agent.register_tool(tool_name, tool)
+
+    def set_tool_permission(
+        self,
+        agent_id: str,
+        tool_name: str,
+        allowed: bool,
+    ) -> None:
+        controlled_agent = self.get_agent(agent_id)
+        if tool_name not in controlled_agent.tools:
+            raise ValueError(
+                f"Tool is not assigned to agent {agent_id}: {tool_name}"
+            )
+        if not isinstance(allowed, bool):
+            raise TypeError("allowed must be a boolean.")
+        controlled_agent.agent.set_permission(tool_name, allowed)
+
+    def execute_tool(
+        self,
+        agent_id: str,
+        tool_name: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        controlled_agent = self.get_agent(agent_id)
+        if tool_name not in controlled_agent.tools:
+            return {
+                "status": "denied",
+                "tool": tool_name,
+                "message": "Tool is not assigned to agent.",
+            }
+        return controlled_agent.agent.execute_tool(
+            tool_name,
+            *args,
+            **kwargs,
+        )
+
     def can_communicate(
         self,
         sender_id: str,

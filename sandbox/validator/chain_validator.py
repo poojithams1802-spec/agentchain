@@ -106,6 +106,7 @@ class ChainValidator:
         self,
         chain_id,
         tests,
+        chain_definition=None,
     ):
         """
         Replay all tests and verify:
@@ -187,20 +188,16 @@ class ChainValidator:
         # 5. GET REGISTERED CHAIN DEPENDENCIES
         # =====================================================
 
-        chain_definition = get_chain(
-            chain_id
-        )
+        # Use the supplied dynamic chain definition first.
+        # Otherwise, preserve existing registered-chain behavior.
+        if chain_definition is None:
+            chain_definition = get_chain(chain_id)
 
         if chain_definition is not None:
-
             chain_specific_dependencies = (
-                chain_definition.get(
-                    "dependencies"
-                )
+                chain_definition.get("dependencies")
             )
-
         else:
-
             chain_specific_dependencies = None
 
         # =====================================================

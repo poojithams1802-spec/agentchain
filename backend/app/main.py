@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import uuid
+import inspect
 
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
@@ -737,6 +738,33 @@ def get_experiment_chains(
     return chains
 
 
+@app.get("/experiments/{experiment_id}/adaptive-run")
+def get_adaptive_run(experiment_id: str):
+    experiment = db.experiments.find_one(
+        {"experiment_id": experiment_id}
+    )
+
+    if experiment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Experiment not found",
+        )
+
+    adaptive_run = db.adaptive_run_results.find_one(
+        {"experiment_id": experiment_id},
+        {"_id": 0},
+        sort=[("timestamp", -1)],
+    )
+
+    if adaptive_run is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No adaptive-run data found for this experiment",
+        )
+
+    return adaptive_run
+
+
 @app.post(
     "/experiments/{experiment_id}/chains/execute",
     response_model=ChainExecutionResponse,
@@ -768,7 +796,39 @@ def execute_experiment_chain(
             detail="Chain not found",
         )
 
-    result = execute_chain(experiment_id, payload.chain_id)
+    chain_definition = {
+        "chain_id": chain["chain_id"],
+        "name": chain.get(
+            "name",
+            chain.get("chain_name", "Adaptive Candidate Chain"),
+        ),
+        "description": chain.get(
+            "description",
+            "Experiment-generated adaptive candidate chain.",
+        ),
+        "steps": chain["steps"],
+        "dependencies": chain.get("dependencies", {}),
+    }
+
+    execute_chain_parameters = inspect.signature(execute_chain).parameters
+
+    if (
+        "chain_definition" in execute_chain_parameters
+        or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in execute_chain_parameters.values()
+        )
+    ):
+        result = execute_chain(
+            experiment_id,
+            payload.chain_id,
+            chain_definition=chain_definition,
+        )
+    else:
+        result = execute_chain(
+            experiment_id,
+            payload.chain_id,
+        )
 
     if result.get("status") == "invalid":
         raise HTTPException(

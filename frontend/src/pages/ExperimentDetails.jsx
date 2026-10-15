@@ -136,6 +136,13 @@ export default function ExperimentDetails() {
               />
             </div>
 
+            {/* Phase 3 views */}
+            <div className="flex flex-wrap gap-4 text-xs">
+              <Link to={`/adaptive/${id}`} className="text-signal hover:underline">Adaptive run & decisions →</Link>
+              <Link to={`/chain-mitigation?exp=${id}`} className="text-signal hover:underline">Mitigate a chain →</Link>
+              <Link to={`/agents/${id}`} className="text-signal hover:underline">Multi-agent view →</Link>
+            </div>
+
             {/* Findings */}
             <section>
               <h2 className="text-sm font-medium text-base-200 mb-3">

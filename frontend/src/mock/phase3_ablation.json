@@ -1,0 +1,110 @@
+{
+  "source": "ai-engine/results/phase3_ablation_gemini_20261011.json",
+  "note": "Saved raw run; the AI-engine evaluation marks it performance_comparison_valid=false (fallback and budget exhaustion).",
+  "study": "phase3_ablation",
+  "configuration_order": [
+    "llm_only",
+    "llm_rag",
+    "llm_chain_context",
+    "llm_rag_chain_context"
+  ],
+  "configuration_count": 4,
+  "comparisons": [
+    {
+      "ablation_run_id": "SNAPSHOT-1",
+      "experiment_id": "GEMINI-ABL-A-20261011",
+      "configuration": "llm_only",
+      "status": "budget_exhausted",
+      "selected_tests": [
+        "permission_test"
+      ],
+      "tests_required": 1,
+      "selection_accuracy": null,
+      "chain_discovery_rate": null,
+      "mitigation_success": null,
+      "chain_disruption": null,
+      "llm_calls": 2,
+      "latency": 30.952956,
+      "validation_rate": null,
+      "residual_vulnerable_steps": 0,
+      "planner_time_seconds": 30.907448,
+      "execution_time_seconds": 0.045177,
+      "total_time_seconds": 30.952956,
+      "execution_success_rate": 1.0,
+      "fallback_used": false
+    },
+    {
+      "ablation_run_id": "SNAPSHOT-2",
+      "experiment_id": "GEMINI-ABL-B-20261011",
+      "configuration": "llm_rag",
+      "status": "completed",
+      "selected_tests": [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test"
+      ],
+      "tests_required": 3,
+      "selection_accuracy": null,
+      "chain_discovery_rate": null,
+      "mitigation_success": null,
+      "chain_disruption": null,
+      "llm_calls": 3,
+      "latency": 12.634323,
+      "validation_rate": null,
+      "residual_vulnerable_steps": 0,
+      "planner_time_seconds": 12.633676,
+      "execution_time_seconds": 0.00031,
+      "total_time_seconds": 12.634323,
+      "execution_success_rate": 1.0,
+      "fallback_used": true
+    },
+    {
+      "ablation_run_id": "SNAPSHOT-3",
+      "experiment_id": "GEMINI-ABL-C-20261011",
+      "configuration": "llm_chain_context",
+      "status": "completed",
+      "selected_tests": [
+        "permission_test",
+        "tool_access_test",
+        "memory_access_test"
+      ],
+      "tests_required": 3,
+      "selection_accuracy": null,
+      "chain_discovery_rate": null,
+      "mitigation_success": null,
+      "chain_disruption": null,
+      "llm_calls": 3,
+      "latency": 23.548119,
+      "validation_rate": null,
+      "residual_vulnerable_steps": 0,
+      "planner_time_seconds": 23.547736,
+      "execution_time_seconds": 0.000183,
+      "total_time_seconds": 23.548119,
+      "execution_success_rate": 1.0,
+      "fallback_used": true
+    },
+    {
+      "ablation_run_id": "SNAPSHOT-4",
+      "experiment_id": "GEMINI-ABL-D-20261011",
+      "configuration": "llm_rag_chain_context",
+      "status": "budget_exhausted",
+      "selected_tests": [
+        "permission_test"
+      ],
+      "tests_required": 1,
+      "selection_accuracy": null,
+      "chain_discovery_rate": null,
+      "mitigation_success": null,
+      "chain_disruption": null,
+      "llm_calls": 2,
+      "latency": 31.074635,
+      "validation_rate": null,
+      "residual_vulnerable_steps": 0,
+      "planner_time_seconds": 31.074452,
+      "execution_time_seconds": 7.1e-05,
+      "total_time_seconds": 31.074635,
+      "execution_success_rate": 1.0,
+      "fallback_used": false
+    }
+  ]
+}

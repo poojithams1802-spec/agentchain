@@ -27,6 +27,7 @@ export default function Findings() {
   })
 
   const [severity, setSeverity] = useState('all')
+  const [query, setQuery] = useState('')
 
   async function load() {
     setState({
@@ -65,14 +66,26 @@ export default function Findings() {
   }, [])
 
   const filtered = useMemo(() => {
-    if (severity === 'all') {
-      return state.data
-    }
+    const needle = query.trim().toLowerCase()
 
-    return state.data.filter(
-      (finding) => finding.severity === severity,
-    )
-  }, [state.data, severity])
+    return state.data.filter((finding) => {
+      if (severity !== 'all' && finding.severity !== severity) {
+        return false
+      }
+
+      if (!needle) {
+        return true
+      }
+
+      // Phase 3: free-text search over experiment, test, finding and evidence.
+      return [
+        finding.experiment_id,
+        finding.test,
+        finding.finding,
+        JSON.stringify(finding.evidence ?? ''),
+      ].some((value) => String(value ?? '').toLowerCase().includes(needle))
+    })
+  }, [state.data, severity, query])
 
   return (
     <>
@@ -88,6 +101,14 @@ export default function Findings() {
             >
               {state.loading ? 'Refreshing…' : 'Refresh'}
             </button>
+
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search findings"
+              placeholder="Search findings…"
+              className="w-48 bg-base-900 border border-base-700 rounded-md px-2.5 py-1 text-xs text-base-100 placeholder:text-base-500 focus:border-signal outline-none"
+            />
 
             <div className="flex gap-1">
               {SEVERITIES.map((item) => (

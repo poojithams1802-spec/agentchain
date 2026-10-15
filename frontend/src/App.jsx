@@ -11,6 +11,11 @@ import Analytics from './pages/Analytics'
 import Mitigation from './pages/Mitigation'
 import MitigationResult from './pages/MitigationResult'
 import Phase2Analytics from './pages/Phase2Analytics'
+import AdaptiveRun from './pages/AdaptiveRun'
+import ChainMitigation from './pages/ChainMitigation'
+import Comparison from './pages/Comparison'
+import Vulnerabilities from './pages/Vulnerabilities'
+import MultiAgent from './pages/MultiAgent'
 
 export default function App() {
   return (
@@ -29,6 +34,13 @@ export default function App() {
           <Route path="/mitigation" element={<Mitigation />} />
           <Route path="/mitigation/:experimentId/:runId" element={<MitigationResult />} />
           <Route path="/phase2-analytics" element={<Phase2Analytics />} />
+          <Route path="/adaptive" element={<AdaptiveRun />} />
+          <Route path="/adaptive/:id" element={<AdaptiveRun />} />
+          <Route path="/chain-mitigation" element={<ChainMitigation />} />
+          <Route path="/comparison" element={<Comparison />} />
+          <Route path="/vulnerabilities" element={<Vulnerabilities />} />
+          <Route path="/agents" element={<MultiAgent />} />
+          <Route path="/agents/:id" element={<MultiAgent />} />
         </Routes>
       </div>
       <footer className="h-8 shrink-0 border-t border-base-700 flex items-center justify-center text-[11px] text-base-400 font-mono">

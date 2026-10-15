@@ -1,0 +1,29 @@
+{
+  "source": "ai-engine/results/DAY14_FINAL_evaluation.json",
+  "note": "Single controlled run (DAY14_FINAL), same 3-test chain in both modes.",
+  "metrics": {
+    "static": {
+      "experiments": 1,
+      "total_tests": 3,
+      "total_findings": 3,
+      "candidate_chains": 1,
+      "validated_chains": 1,
+      "average_chain_length": 3,
+      "validation_rate": 1.0,
+      "execution_count": 3,
+      "execution_time_seconds": 1.6300007700920105e-05
+    },
+    "adaptive": {
+      "experiments": 1,
+      "total_tests": 3,
+      "total_findings": 3,
+      "candidate_chains": 1,
+      "validated_chains": 1,
+      "average_chain_length": 3.0,
+      "validation_rate": 1.0,
+      "execution_count": 3,
+      "execution_time_seconds": 3.339996328577399e-05
+    }
+  },
+  "records": []
+}

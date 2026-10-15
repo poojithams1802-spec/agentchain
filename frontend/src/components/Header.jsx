@@ -12,6 +12,11 @@ const NAV = [
   { to: '/analytics', label: 'Analytics' },
   { to: '/mitigation', label: 'Mitigation' },
   { to: '/phase2-analytics', label: 'Mitigation Metrics' },
+  { to: '/adaptive', label: 'Adaptive Run' },
+  { to: '/chain-mitigation', label: 'Chain Mitigation' },
+  { to: '/comparison', label: 'Comparison' },
+  { to: '/vulnerabilities', label: 'Vulnerabilities' },
+  { to: '/agents', label: 'Multi-Agent' },
 ]
 
 export default function Header() {
@@ -28,7 +33,7 @@ export default function Header() {
             <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">Chain</span>
           </span>
           <span className="hidden sm:inline px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50">
-            Phase 2
+            Adaptive Compositional Attack-Chain Discovery 
           </span>
         </Link>
 

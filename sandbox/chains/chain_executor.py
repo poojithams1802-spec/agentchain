@@ -21,6 +21,7 @@ from .chain_registry import get_chain
 def execute_chain(
     experiment_id,
     chain_id,
+    chain_definition=None,
 ):
     """
     Execute a registered controlled attack chain.
@@ -60,8 +61,10 @@ def execute_chain(
     # GET CHAIN
     # =========================================================
 
-    chain = get_chain(
-        chain_id
+    chain = (
+        dict(chain_definition)
+        if chain_definition is not None
+        else get_chain(chain_id)
     )
 
     if chain is None:
@@ -74,10 +77,26 @@ def execute_chain(
             "total_steps": 0,
             "validation_rate": 0.0,
             "steps": [],
-            "error": (
-                f"Unknown chain: {chain_id}"
-            ),
+            "error": f"Unknown chain: {chain_id}",
         }
+
+    if chain.get("chain_id") != chain_id:
+        return {
+            "status": "invalid",
+            "experiment_id": experiment_id,
+            "chain_id": chain_id,
+            "chain_length": 0,
+            "validated_steps": 0,
+            "total_steps": 0,
+            "validation_rate": 0.0,
+            "steps": [],
+            "error": "Chain definition ID does not match chain_id.",
+        }
+
+    if not chain.get("description"):
+        chain["description"] = (
+            "Experiment-generated adaptive candidate chain."
+        )
 
     # =========================================================
     # VALIDATE / EXECUTE
@@ -91,6 +110,7 @@ def execute_chain(
         validator.validate_chain(
             chain_id,
             chain["steps"],
+            chain_definition=chain,
         )
     )
 
